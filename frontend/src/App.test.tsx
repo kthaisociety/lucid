@@ -1496,3 +1496,39 @@ test('the deal panel edits links, and opens only web addresses', async () => {
   expect(await screen.findByText(/must be a web address/)).toBeInTheDocument()
   expect(writeUp).toHaveValue('')
 })
+
+test('title saves go out one at a time, so the newest one wins', async () => {
+  renderAt('/me')
+  const title = await screen.findByLabelText('Your title')
+  const first = api.hold('PATCH', /^\/api\/me$/, { late: true, once: true })
+  const sent = () => api.requests.filter((r) => r.path === '/api/me' && r.method === 'PATCH').map((r) => r.body)
+
+  fireEvent.change(title, { target: { value: 'Partnerships Lead' } })
+  fireEvent.blur(title)
+  fireEvent.change(title, { target: { value: 'Head of Business' } })
+  fireEvent.blur(title)
+  await settle()
+  expect(sent()).toEqual([{ title: 'Partnerships Lead' }]) // the newer one waits
+
+  await first.release()
+  await waitFor(() => expect(sent()).toEqual([{ title: 'Partnerships Lead' }, { title: 'Head of Business' }]))
+  await waitFor(() => expect(api.members.find((m) => m.id === 'm-dev')?.title).toBe('Head of Business'))
+  await waitFor(() => expect(title).toHaveValue('Head of Business'))
+})
+
+test('going back to the saved title while another save is under way saves it too', async () => {
+  api.members.find((m) => m.id === 'm-dev')!.title = 'Partnerships Lead'
+  renderAt('/me')
+  const title = await screen.findByLabelText('Your title')
+  await waitFor(() => expect(title).toHaveValue('Partnerships Lead'))
+  const first = api.hold('PATCH', /^\/api\/me$/, { late: true, once: true })
+
+  fireEvent.change(title, { target: { value: 'Head of Business' } })
+  fireEvent.blur(title)
+  fireEvent.change(title, { target: { value: 'Partnerships Lead' } })
+  fireEvent.blur(title)
+  await first.release()
+
+  await waitFor(() => expect(api.members.find((m) => m.id === 'm-dev')?.title).toBe('Partnerships Lead'))
+  await waitFor(() => expect(title).toHaveValue('Partnerships Lead'))
+})

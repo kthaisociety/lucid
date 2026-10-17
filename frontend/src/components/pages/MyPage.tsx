@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { LogOut, Mail } from 'lucide-react'
 import type { User } from '../../api'
 import { ROLES, nudgeFor, statusLabel, type Deal } from '../../data/deals'
@@ -25,6 +25,9 @@ function TitleField({ title, onSave }: { title: string; onSave: (title: string) 
   const [draft, setDraft] = useState(title)
   const [seen, setSeen] = useState(title)
   const [error, setError] = useState<string | null>(null)
+  const queue = useRef<Promise<void>>(Promise.resolve())
+  const pending = useRef(0) // saves queued or under way
+  const lastSent = useRef(title)
   // A new title from outside (a save's answer, say) shows unless you've typed something else since: a
   // save that answers while you edit again mustn't erase the newer text.
   if (title !== seen) {
@@ -34,10 +37,16 @@ function TitleField({ title, onSave }: { title: string; onSave: (title: string) 
   const save = async () => {
     const submitted = draft
     const next = submitted.trim()
-    if (next === title) return
+    // Nothing to save if it's what the last save sent, or, with none under way, the saved title.
+    if (next === (pending.current > 0 ? lastSent.current : title)) return
     setError(null)
+    // One save at a time, in order: a slow earlier save can't land after a newer one and undo it.
+    pending.current++
+    lastSent.current = next
+    const saved = queue.current.then(() => onSave(next))
+    queue.current = saved.catch(() => {}).finally(() => pending.current--)
     try {
-      await onSave(next)
+      await saved
     } catch (err) {
       // Back to the saved title, unless you've typed something else since.
       setDraft((current) => (current === submitted ? title : current))
