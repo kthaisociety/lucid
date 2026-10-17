@@ -267,7 +267,18 @@ export function stubApi(
     if (match && !deal) return error(404, 'deal not found')
     if (deal && method === 'GET' && !match[2]) return json(deal)
     if (deal && method === 'PATCH' && !match[2]) {
-      const { contactId, ownerId, ...fields } = body
+      const { companyId, contactId, ownerId, supportIds, links, ...fields } = body
+      if (companyId !== undefined && companyId !== deal.companyId) {
+        const company = api.companies.find((c) => c.id === companyId)
+        if (!company) return error(400, 'companyId is not a company')
+        Object.assign(deal, { companyId: company.id, company: company.name, contact: null })
+      }
+      if (supportIds !== undefined) {
+        const support = (supportIds as string[]).map((sid) => api.members.find((m) => m.id === sid))
+        if (support.includes(undefined)) return error(400, "someone picked isn't on the team anymore")
+        deal.support = support as Person[]
+      }
+      if (links !== undefined) deal.links = { ...deal.links, ...(links as Deal['links']) }
       if (ownerId !== undefined) {
         const next = ownerId === null ? null : api.members.find((m) => m.id === ownerId)
         if (next === undefined) return error(400, 'ownerId is not a team member')

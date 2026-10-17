@@ -246,10 +246,18 @@ export default function App() {
   const saveDeal = (id: string, patch: DealPatch) => {
     const before = all.find((deal) => deal.id === id)
     if (!before) return
-    const { contactId, ownerId, ...fields } = patch
+    const { companyId, contactId, ownerId, supportIds, links, ...fields } = patch
     const local: Partial<Deal> = { ...fields }
+    if (companyId !== undefined && companyId !== before.companyId) {
+      // The server leaves a deal moved to another company with no contact, unless it's given one there.
+      local.companyId = companyId
+      local.company = companies.find((c) => c.id === companyId)?.name ?? before.company
+      local.contact = null
+    }
     if (contactId !== undefined) local.contact = contacts.find((c) => c.id === contactId) ?? null
     if (ownerId !== undefined) local.owner = members.find((m) => m.id === ownerId) ?? null
+    if (supportIds !== undefined) local.support = members.filter((m) => supportIds.includes(m.id))
+    if (links !== undefined) local.links = { ...before.links, ...links }
     // The fields this edit sets locally (a contactId shows as the contact itself). They count as saving
     // from now, while queued too, so no refresh replaces them before the save is through.
     const keys = Object.keys(local) as (keyof Deal)[]
@@ -513,6 +521,7 @@ export default function App() {
             .filter((deal) => deal.company === selected.company && deal.id !== selected.id)
             .sort((a, b) => compareSemesters(a.semester, b.semester))}
           onClose={() => setSelectedId(null)}
+          companies={companies}
           companyContacts={contacts.filter((c) => c.companyId === selected.companyId)}
           members={members}
           meId={user?.memberId}

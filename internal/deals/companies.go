@@ -30,6 +30,15 @@ func isForeignKeyViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23503"
 }
 
+// violated names the constraint err is Postgres refusing a row over, or is "" for any other error.
+func violated(err error) string {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && (pgErr.Code == "23503" || pgErr.Code == "23514") {
+		return pgErr.ConstraintName
+	}
+	return ""
+}
+
 func (s *Store) ListCompanies(ctx context.Context) ([]CompanyView, error) {
 	var companies []Company
 	if err := s.db.WithContext(ctx).Order("lower(name)").Find(&companies).Error; err != nil {

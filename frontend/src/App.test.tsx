@@ -237,8 +237,11 @@ test('the drawer links to other deals with the same company', async () => {
 
   fireEvent.click(within(drawer).getByRole('button', { name: new RegExp(`${lastSemester} · Panel discussion`) }))
 
-  expect(screen.getByLabelText('Semester')).toHaveValue(lastSemester)
-  expect(screen.getByRole('dialog', { name: 'Granit Consulting' })).toHaveTextContent('Panel discussion')
+  const filter = screen.getAllByLabelText('Semester').find((el) => !el.closest('[role="dialog"]'))
+  expect(filter).toHaveValue(lastSemester)
+  const other = screen.getByRole('dialog', { name: 'Granit Consulting' })
+  expect(within(other).getByLabelText('Event type')).toHaveValue('Panel discussion')
+  expect(within(other).getByLabelText('Semester')).toHaveValue(lastSemester)
 })
 
 test('search filters by company, contact and notes', async () => {
@@ -510,8 +513,9 @@ test('Companies groups every semester’s deals by company and opens one', async
   fireEvent.click(granit)
   fireEvent.click(screen.getByRole('button', { name: new RegExp(`${lastSemester} · Panel discussion`) }))
 
-  expect(screen.getByRole('dialog', { name: 'Granit Consulting' })).toHaveTextContent('Panel discussion')
-  expect(screen.getByLabelText('Semester')).toHaveValue(lastSemester)
+  const deal = screen.getByRole('dialog', { name: 'Granit Consulting' })
+  expect(within(deal).getByLabelText('Event type')).toHaveValue('Panel discussion')
+  expect(within(deal).getByLabelText('Semester')).toHaveValue(lastSemester)
 })
 
 test('Contacts lists the people from deals, with their email', async () => {
@@ -1247,4 +1251,128 @@ test('a failed edit reads the deal again when the last save’s value is unknown
 
   await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Couldn't save Lumen Health"))
   await waitFor(() => expect(screen.getByLabelText('Status')).toHaveValue('discussing'))
+})
+
+test('the deal panel edits the deal’s details', async () => {
+  await renderApp()
+  const drawer = open('Granit Consulting')
+
+  fireEvent.change(within(drawer).getByLabelText('Deal type'), { target: { value: 'Partnership' } })
+  fireEvent.change(within(drawer).getByLabelText('Event type'), { target: { value: 'Workshop' } })
+  fireEvent.change(within(drawer).getByLabelText('Audience'), { target: { value: 'Internal' } })
+  const location = within(drawer).getByLabelText('Location')
+  fireEvent.change(location, { target: { value: ' KTH Library ' } })
+  fireEvent.blur(location)
+  fireEvent.change(within(drawer).getByLabelText('Invoice due'), { target: { value: '2027-01-15' } })
+  fireEvent.click(within(drawer).getByRole('button', { name: '4 out of 5' }))
+  const notes = within(drawer).getByLabelText('Notes')
+  fireEvent.change(notes, { target: { value: 'Covers food.' } })
+  fireEvent.blur(notes)
+
+  await waitFor(() =>
+    expect(patches().map((p) => p.body)).toEqual([
+      { dealType: 'Partnership' },
+      { eventType: 'Workshop' },
+      { audience: 'Internal' },
+      { location: 'KTH Library' },
+      { invoiceDue: '2027-01-15' },
+      { rating: 4 },
+      { notes: 'Covers food.' },
+    ]),
+  )
+  expect(api.deals.find((d) => d.id === 'granit')).toMatchObject({
+    dealType: 'Partnership',
+    eventType: 'Workshop',
+    audience: 'Internal',
+    location: 'KTH Library',
+    invoiceDue: '2027-01-15',
+    rating: 4,
+    notes: 'Covers food.',
+  })
+  expect(within(drawer).getByRole('button', { name: '4 out of 5' })).toHaveAttribute('aria-pressed', 'true')
+
+  fireEvent.click(within(drawer).getByRole('button', { name: '4 out of 5' }))
+  await waitFor(() => expect(patches().at(-1)?.body).toEqual({ rating: null }))
+})
+
+test('moving the start date past the end clears the end, and the end needs a start', async () => {
+  await renderApp()
+  const drawer = open('Granit Consulting')
+  const start = within(drawer).getByLabelText('Start date')
+  const end = within(drawer).getByLabelText('End date')
+
+  fireEvent.change(end, { target: { value: '2026-12-05' } })
+  fireEvent.change(start, { target: { value: '2026-12-10' } })
+  expect(end).toHaveValue('')
+
+  fireEvent.change(start, { target: { value: '' } })
+  expect(end).toBeDisabled()
+  await waitFor(() =>
+    expect(patches().map((p) => p.body)).toEqual([
+      { endDate: '2026-12-05' },
+      { startDate: '2026-12-10', endDate: null },
+      { startDate: null },
+    ]),
+  )
+})
+
+test('the deal panel moves a deal to another company, without its contact', async () => {
+  await renderApp()
+  const drawer = open('Granit Consulting')
+
+  const saving = api.hold('PATCH', /\/api\/deals\/granit/)
+  fireEvent.change(within(drawer).getByLabelText('Company'), { target: { value: 'c-kvarnholmen-ai' } })
+
+  // At once, before the server answers.
+  const moved = screen.getByRole('dialog', { name: 'Kvarnholmen AI' })
+  expect(within(moved).getByLabelText('Contact')).toHaveDisplayValue('No contact')
+  expect(moved).not.toHaveTextContent('lina.dahl@example.com')
+  await saving.release()
+  await waitFor(() => expect(patches().map((p) => p.body)).toEqual([{ companyId: 'c-kvarnholmen-ai' }]))
+  expect(api.deals.find((d) => d.id === 'granit')).toMatchObject({ company: 'Kvarnholmen AI', contact: null })
+})
+
+test('the deal panel adds and removes support, leaving out the owner', async () => {
+  await renderApp()
+  const drawer = open('Granit Consulting')
+  const add = within(drawer).getByLabelText('Add support')
+  expect(within(add).queryByRole('option', { name: 'Maja Holm' })).not.toBeInTheDocument() // the owner
+  expect(within(add).queryByRole('option', { name: 'Oskar Berg' })).not.toBeInTheDocument() // already supports
+
+  fireEvent.change(add, { target: { value: 'm-iris' } })
+  expect(drawer).toHaveTextContent('Iris Wallin')
+  fireEvent.click(within(drawer).getByRole('button', { name: 'Remove Oskar Berg from support' }))
+
+  await waitFor(() =>
+    expect(patches().map((p) => p.body)).toEqual([{ supportIds: ['m-oskar', 'm-iris'] }, { supportIds: ['m-iris'] }]),
+  )
+  expect(api.deals.find((d) => d.id === 'granit')?.support.map((p) => p.name)).toEqual(['Iris Wallin'])
+})
+
+test('the deal panel edits links, and opens only web addresses', async () => {
+  await renderApp()
+  const drawer = open('Granit Consulting')
+  expect(within(drawer).getByRole('link', { name: 'Open Contract' })).toHaveAttribute('href', 'https://drive.example.com/granit-contract')
+
+  const drive = within(drawer).getByLabelText('Drive link')
+  fireEvent.change(drive, { target: { value: 'https://drive.example.com/granit' } })
+  fireEvent.blur(drive)
+  const contract = within(drawer).getByLabelText('Contract link')
+  fireEvent.change(contract, { target: { value: '' } })
+  fireEvent.blur(contract)
+
+  await waitFor(() =>
+    expect(patches().map((p) => p.body)).toEqual([{ links: { drive: 'https://drive.example.com/granit' } }, { links: { contract: '' } }]),
+  )
+  expect(within(drawer).getByRole('link', { name: 'Open Drive' })).toHaveAttribute('href', 'https://drive.example.com/granit')
+  expect(within(drawer).queryByRole('link', { name: 'Open Contract' })).not.toBeInTheDocument()
+
+  // The server refuses anything but a web address; until it answers, it isn't a link either.
+  api.fail('PATCH', /\/api\/deals\/granit/, 400, 'links.writeUp must be a web address (https://…)')
+  const writeUp = within(drawer).getByLabelText('Write-up link')
+  fireEvent.change(writeUp, { target: { value: 'javascript:alert(1)' } })
+  fireEvent.blur(writeUp)
+  expect(within(drawer).queryByRole('link', { name: 'Open Write-up' })).not.toBeInTheDocument()
+  expect(await screen.findByText(/must be a web address/)).toBeInTheDocument()
+  expect(writeUp).toHaveValue('')
 })
