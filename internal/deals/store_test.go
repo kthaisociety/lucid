@@ -132,3 +132,125 @@ func TestUnknownDealsAreNotFound(t *testing.T) {
 		assert.ErrorIs(t, err, deals.ErrNotFound)
 	}
 }
+
+func update(t *testing.T, s *deals.Store, id, body string) (deals.View, error) {
+	t.Helper()
+	cols, err := deals.ParsePatch([]byte(body))
+	require.NoError(t, err)
+	return s.Update(context.Background(), id, cols)
+}
+
+func TestUpdateSetsEveryField(t *testing.T) {
+	s := newStore(t)
+	d := addLead(t, s, "Nordljus AB")
+
+	updated, err := update(t, s, d.ID, `{
+		"dealType":"Partnership","eventType":"Hackathon","audience":"External","semester":"VT 2027",
+		"startDate":"2027-03-01","endDate":"2027-03-02","location":"KTH Library","invoiceDue":"2027-04-01",
+		"rating":4,"notes":"Great crowd","links":{"drive":"https://drive.example.com/x","contract":"https://docs.example.com/c"}
+	}`)
+
+	require.NoError(t, err)
+	assert.Equal(t, "Partnership", updated.DealType)
+	assert.Equal(t, "Hackathon", updated.EventType)
+	assert.Equal(t, "External", updated.Audience)
+	assert.Equal(t, "VT 2027", updated.Semester)
+	assert.Equal(t, deals.Date("2027-03-01"), *updated.StartDate)
+	assert.Equal(t, deals.Date("2027-03-02"), *updated.EndDate)
+	assert.Equal(t, "KTH Library", updated.Location)
+	assert.Equal(t, deals.Date("2027-04-01"), *updated.InvoiceDue)
+	assert.Equal(t, 4, *updated.Rating)
+	assert.Equal(t, "Great crowd", updated.Notes)
+	assert.Equal(t, deals.LinksView{Drive: "https://drive.example.com/x", Contract: "https://docs.example.com/c"}, updated.Links)
+
+	updated, err = update(t, s, d.ID, `{"links":{"drive":""}}`)
+	require.NoError(t, err)
+	assert.Equal(t, deals.LinksView{Contract: "https://docs.example.com/c"}, updated.Links, "only the link given changes")
+}
+
+func TestUpdateKeepsTheEndDateAfterTheStart(t *testing.T) {
+	s := newStore(t)
+	d := addLead(t, s, "Nordljus AB")
+	_, err := update(t, s, d.ID, `{"startDate":"2027-03-01","endDate":"2027-03-02"}`)
+	require.NoError(t, err)
+
+	var invalid *deals.ValidationError
+	_, err = update(t, s, d.ID, `{"endDate":"2027-02-28"}`)
+	assert.ErrorAs(t, err, &invalid, "before the start")
+	_, err = update(t, s, d.ID, `{"startDate":null}`)
+	assert.ErrorAs(t, err, &invalid, "an end without a start")
+
+	got, err := update(t, s, d.ID, `{"startDate":null,"endDate":null}`)
+	require.NoError(t, err)
+	assert.Nil(t, got.StartDate)
+	assert.Nil(t, got.EndDate)
+}
+
+func TestUpdateMovesADealToAnotherCompany(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	d := addLead(t, s, "Nordljus AB")
+	other := addLead(t, s, "Vinga Voice")
+
+	moved, err := update(t, s, d.ID, `{"companyId":"`+other.CompanyID+`"}`)
+	require.NoError(t, err)
+	assert.Equal(t, "Vinga Voice", moved.Company)
+	assert.Nil(t, moved.Contact, "the contact works at the old company")
+
+	moved, err = update(t, s, d.ID, `{"companyId":"`+d.CompanyID+`","contactId":"`+d.Contact.ID+`"}`)
+	require.NoError(t, err)
+	assert.Equal(t, "Nordljus AB", moved.Company)
+	require.NotNil(t, moved.Contact)
+	assert.Equal(t, d.Contact.ID, moved.Contact.ID, "moving back with a contact there")
+
+	same, err := update(t, s, d.ID, `{"companyId":"`+d.CompanyID+`"}`)
+	require.NoError(t, err)
+	assert.NotNil(t, same.Contact, "the same company keeps the contact")
+
+	var invalid *deals.ValidationError
+	_, err = update(t, s, d.ID, `{"companyId":"`+other.CompanyID+`","contactId":"`+d.Contact.ID+`"}`)
+	assert.ErrorAs(t, err, &invalid, "a contact at the old company")
+	_, err = update(t, s, d.ID, `{"companyId":"00000000-0000-0000-0000-000000000000"}`)
+	assert.ErrorAs(t, err, &invalid, "no such company")
+	_, err = update(t, s, "00000000-0000-0000-0000-000000000000", `{"companyId":"`+other.CompanyID+`"}`)
+	assert.ErrorIs(t, err, deals.ErrNotFound)
+
+	got, err := s.Get(ctx, d.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Nordljus AB", got.Company, "refused moves change nothing")
+}
+
+func TestUpdateSetsTheSupport(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	d := addLead(t, s, "Nordljus AB")
+	maja, err := s.AddMember(ctx, deals.MemberInput{Email: "maja@example.com", Name: "Maja Holm"})
+	require.NoError(t, err)
+	noah, err := s.AddMember(ctx, deals.MemberInput{Email: "noah@example.com", Name: "Noah Ek"})
+	require.NoError(t, err)
+
+	got, err := update(t, s, d.ID, `{"supportIds":["`+maja.ID+`","`+noah.ID+`"]}`)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"Maja Holm", "Noah Ek"}, names(got.Support))
+
+	got, err = update(t, s, d.ID, `{"supportIds":["`+noah.ID+`"]}`)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Noah Ek"}, names(got.Support))
+	require.NoError(t, s.RemoveMember(ctx, maja.ID), "Maja no longer supports it")
+
+	var invalid *deals.ValidationError
+	_, err = update(t, s, d.ID, `{"supportIds":["`+maja.ID+`"]}`)
+	assert.ErrorAs(t, err, &invalid, "not on the team")
+
+	got, err = update(t, s, d.ID, `{"supportIds":[]}`)
+	require.NoError(t, err)
+	assert.Empty(t, got.Support)
+}
+
+func names(members []deals.MemberView) []string {
+	out := []string{}
+	for _, m := range members {
+		out = append(out, m.Name)
+	}
+	return out
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -153,32 +154,31 @@ func (s *Store) Create(ctx context.Context, lead NewLead, by auth.User) (View, e
 	return view, err
 }
 
-// Update sets the columns ParsePatch returned.
+// Update sets the columns ParsePatch returned, and replaces the support when SupportField is there.
 func (s *Store) Update(ctx context.Context, id string, cols map[string]any) (View, error) {
 	if !uuidPattern.MatchString(id) {
 		return View{}, ErrNotFound
 	}
 	var view View
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		support, setSupport := cols[SupportField].([]string)
+		delete(cols, SupportField)
+		var members []string
 		if ownerID, ok := cols["owner_id"].(string); ok {
-			if err := memberExists(tx, ownerID); err != nil {
-				return err
-			}
+			members = append(members, ownerID)
 		}
-		if contactID, ok := cols["contact_id"].(string); ok {
-			var d Deal
-			if err := tx.Preload("Company").Where("id = ?", id).Take(&d).Error; errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrNotFound
-			} else if err != nil {
-				return err
-			}
-			if _, err := contactAt(tx, contactID, *d.Company); err != nil {
-				return err
-			}
+		members = append(members, support...)
+		if err := membersExist(tx, members); err != nil {
+			return err
+		}
+		if err := s.checkCompanyAndContact(tx, id, cols); err != nil {
+			return err
 		}
 		cols["updated_at"] = time.Now()
 		res := tx.Model(&Deal{}).Where("id = ?", id).Updates(cols)
-		if isForeignKeyViolation(res.Error) {
+		if constraint := violated(res.Error); constraint == "deals_check" {
+			return invalid("the end date needs a start date, and can't be before it")
+		} else if constraint == "deals_contact_at_company" {
 			return invalid("that contact isn't at the deal's company")
 		}
 		if res.Error != nil {
@@ -187,11 +187,57 @@ func (s *Store) Update(ctx context.Context, id string, cols map[string]any) (Vie
 		if res.RowsAffected == 0 {
 			return ErrNotFound
 		}
+		if setSupport {
+			if err := tx.Exec("DELETE FROM deal_support WHERE deal_id = ?", id).Error; err != nil {
+				return err
+			}
+			for _, memberID := range support {
+				if err := tx.Exec("INSERT INTO deal_support (deal_id, member_id) VALUES (?, ?)", id, memberID).Error; err != nil {
+					return err
+				}
+			}
+		}
 		var err error
 		view, err = get(tx, id)
 		return err
 	})
 	return view, err
+}
+
+// checkCompanyAndContact checks a deal's new company and contact. A contact must work at the deal's
+// company: the new one if it changes, where a new company without a new contact leaves the deal with
+// none.
+func (s *Store) checkCompanyAndContact(tx *gorm.DB, id string, cols map[string]any) error {
+	companyID, newCompany := cols["company_id"].(string)
+	contactID, newContact := cols["contact_id"].(string)
+	if !newCompany && !newContact {
+		return nil
+	}
+	var d Deal
+	if err := tx.Where("id = ?", id).Take(&d).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrNotFound
+	} else if err != nil {
+		return err
+	}
+	if !newCompany {
+		companyID = d.CompanyID
+	}
+	// KEY SHARE holds off the company's deletion until the deal points at it.
+	var company Company
+	err := tx.Clauses(clause.Locking{Strength: "KEY SHARE"}).Where("id = ?", companyID).Take(&company).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return invalid("companyId is not a company")
+	} else if err != nil {
+		return err
+	}
+	if newContact {
+		_, err := contactAt(tx, contactID, company)
+		return err
+	}
+	if _, given := cols["contact_id"]; !given && companyID != d.CompanyID {
+		cols["contact_id"] = nil
+	}
+	return nil
 }
 
 // AddNote puts a quick note from a member on a deal's timeline. A touchpoint resets the follow-up nudge.
@@ -276,15 +322,33 @@ func (s *Store) memberFor(tx *gorm.DB, u auth.User) (Member, error) {
 }
 
 func memberExists(tx *gorm.DB, id string) error {
-	var n int64
-	if !uuidPattern.MatchString(id) {
-		return invalid("ownerId is not a team member")
+	return membersExist(tx, []string{id})
+}
+
+// membersExist checks that each id is a team member's, and holds off their removal until the transaction
+// ends: whatever it then points at them stays valid. RemoveMember refuses to remove an owner or support.
+func membersExist(tx *gorm.DB, ids []string) error {
+	if len(ids) == 0 {
+		return nil
 	}
-	if err := tx.Model(&Member{}).Where("id = ?", id).Count(&n).Error; err != nil {
+	want := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if !uuidPattern.MatchString(id) {
+			return invalid("%q is not a team member", id)
+		}
+		want = append(want, strings.ToLower(id))
+	}
+	var found []string
+	// In id order, so two requests locking the same members can't wait on each other.
+	err := tx.Model(&Member{}).Clauses(clause.Locking{Strength: "KEY SHARE"}).
+		Where("id IN ?", want).Order("id").Pluck("id", &found).Error
+	if err != nil {
 		return err
 	}
-	if n == 0 {
-		return invalid("ownerId is not a team member")
+	for _, id := range want {
+		if !slices.Contains(found, id) {
+			return invalid("someone picked isn't on the team anymore")
+		}
 	}
 	return nil
 }

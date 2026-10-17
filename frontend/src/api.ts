@@ -85,10 +85,33 @@ export const fetchDeal = (id: string) => call<Deal>('GET', `/api/deals/${encodeU
 
 export const createDeal = (lead: NewLeadInput) => call<Deal>('POST', '/api/deals', lead)
 
-// The fields the deal panel edits; the API rejects any other.
-export type DealPatch = Partial<Pick<Deal, 'status' | 'nextStep' | 'nextStepDue' | 'feeSEK' | 'invoiceStatus'>> & {
+// The fields the deal panel edits; the API rejects any other. A new company without a new contact leaves
+// the deal with none (a contact works at the deal's company), and links change only those given.
+export type DealPatch = Partial<
+  Pick<
+    Deal,
+    | 'status'
+    | 'dealType'
+    | 'eventType'
+    | 'audience'
+    | 'semester'
+    | 'startDate'
+    | 'endDate'
+    | 'location'
+    | 'nextStep'
+    | 'nextStepDue'
+    | 'feeSEK'
+    | 'invoiceStatus'
+    | 'invoiceDue'
+    | 'rating'
+    | 'notes'
+  >
+> & {
+  companyId?: string
   contactId?: string | null
   ownerId?: string | null
+  supportIds?: string[]
+  links?: Deal['links']
 }
 
 export const updateDeal = (id: string, patch: DealPatch) =>

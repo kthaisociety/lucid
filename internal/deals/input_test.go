@@ -124,3 +124,70 @@ func TestCompanyAndContactPatches(t *testing.T) {
 		assert.ErrorAs(t, bad(), &invalid)
 	}
 }
+
+func TestParsePatchTakesEveryDealField(t *testing.T) {
+	cols, err := ParsePatch([]byte(`{
+		"dealType":"Partnership","eventType":"Hackathon","audience":"External","semester":"VT 2027",
+		"startDate":"2027-03-01","endDate":"2027-03-02","location":" KTH Library ","invoiceDue":"2027-04-01",
+		"rating":4,"notes":" Great crowd ","companyId":"00000000-0000-0000-0000-000000000002",
+		"supportIds":["00000000-0000-0000-0000-00000000000A","00000000-0000-0000-0000-00000000000a"],
+		"links":{"drive":"https://drive.example.com/x","writeUp":""}
+	}`))
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"deal_type":    "Partnership",
+		"event_type":   "Hackathon",
+		"audience":     "External",
+		"semester":     "VT 2027",
+		"start_date":   Date("2027-03-01"),
+		"end_date":     Date("2027-03-02"),
+		"location":     "KTH Library",
+		"invoice_due":  Date("2027-04-01"),
+		"rating":       4,
+		"notes":        "Great crowd",
+		"company_id":   "00000000-0000-0000-0000-000000000002",
+		SupportField:   []string{"00000000-0000-0000-0000-00000000000a"},
+		"drive_url":    "https://drive.example.com/x",
+		"write_up_url": "",
+	}, cols, "links left out stay as they are")
+}
+
+func TestParsePatchClearsDatesRatingAndSupport(t *testing.T) {
+	cols, err := ParsePatch([]byte(`{"startDate":null,"endDate":null,"invoiceDue":null,"rating":null,"supportIds":[]}`))
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"start_date": nil, "end_date": nil, "invoice_due": nil, "rating": nil, SupportField: []string{}}, cols)
+}
+
+func TestParsePatchRejectsBadDealFields(t *testing.T) {
+	for _, body := range []string{
+		`{"dealType":"Sponsorship"}`,
+		`{"eventType":null}`,
+		`{"audience":"Everyone"}`,
+		`{"semester":"Autumn 2026"}`,
+		`{"startDate":"tomorrow"}`,
+		`{"location":null}`,
+		`{"notes":42}`,
+		`{"rating":0}`,
+		`{"rating":6}`,
+		`{"rating":4.5}`,
+		`{"companyId":null}`,
+		`{"companyId":"Nordljus AB"}`,
+		`{"supportIds":null}`,
+		`{"supportIds":["maja"]}`,
+		`{"links":{}}`,
+		`{"links":null}`,
+		`{"links":{"slides":"https://example.com"}}`,
+		`{"links":{"drive":null}}`,
+		`{"links":{"drive":"javascript:alert(1)"}}`,
+		`{"links":{"drive":"drive.example.com/x"}}`,
+		`{"links":{"contract":"https://"}}`,
+	} {
+		t.Run(body, func(t *testing.T) {
+			_, err := ParsePatch([]byte(body))
+			var invalid *ValidationError
+			assert.ErrorAs(t, err, &invalid)
+		})
+	}
+}
