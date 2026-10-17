@@ -12,7 +12,7 @@ export default function SignInPage({ reason }: { reason: string | null }) {
   const message = reason ? (reasons[reason] ?? reasons.failed) : null
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 font-sans text-gray-900">
-      <main className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
+      <main className="w-full max-w-sm rounded-xl border border-gray-200 bg-surface p-8 shadow-sm">
         <div className="flex flex-col items-center text-center">
           <Logo size={56} className="shadow-sm" />
           <h1 className="font-display mt-4 text-xl font-bold">Lucid</h1>
@@ -26,7 +26,7 @@ export default function SignInPage({ reason }: { reason: string | null }) {
         )}
         <a
           href="/auth/login"
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-hover"
         >
           <LogIn size={16} aria-hidden /> Sign in with Google
         </a>

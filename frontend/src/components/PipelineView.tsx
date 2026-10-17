@@ -13,7 +13,7 @@ type Props = {
 
 const chip = (active: boolean) =>
   `flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition ${
-    active ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+    active ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-surface text-gray-600 hover:bg-gray-50'
   }`
 
 export default function PipelineView({ deals, meId, onSelect, onMove }: Props) {
@@ -38,7 +38,7 @@ export default function PipelineView({ deals, meId, onSelect, onMove }: Props) {
         aria-label="Filters"
         className="flex items-center gap-1.5 overflow-x-auto px-4 pt-4 pb-3 whitespace-nowrap md:flex-wrap md:px-6 [&>*]:shrink-0"
       >
-        <div className="mr-2 flex rounded-lg border border-gray-200 bg-white p-0.5">
+        <div className="mr-2 flex rounded-lg border border-gray-200 bg-surface p-0.5">
           {(
             [
               ['board', 'Board', KanbanSquare],

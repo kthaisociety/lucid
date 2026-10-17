@@ -29,7 +29,7 @@ export default function DealCard({ deal, onSelect }: Props) {
         setDragging(true)
       }}
       onDragEnd={() => setDragging(false)}
-      className={`w-full cursor-grab rounded-lg border border-gray-200 bg-white p-3 text-left shadow-sm transition hover:border-indigo-200 hover:shadow focus-visible:outline-2 focus-visible:outline-indigo-500 active:cursor-grabbing ${
+      className={`w-full cursor-grab rounded-lg border border-gray-200 bg-surface p-3 text-left shadow-sm transition hover:border-indigo-200 hover:shadow focus-visible:outline-2 focus-visible:outline-indigo-500 active:cursor-grabbing ${
         dragging ? 'opacity-40' : ''
       }`}
     >
