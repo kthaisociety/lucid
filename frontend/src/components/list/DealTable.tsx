@@ -16,7 +16,7 @@ export default function DealTable({ deals, onSelect }: Props) {
 
   return (
     <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
-      <table className="w-full min-w-[960px] border-separate border-spacing-0 overflow-hidden rounded-xl border border-gray-200 bg-white text-left text-xs">
+      <table className="w-full min-w-[960px] border-separate border-spacing-0 overflow-hidden rounded-xl border border-gray-200 bg-surface text-left text-xs">
         <thead className="bg-gray-50 text-[11px] text-gray-500">
           <tr>
             {['Company', 'Type', 'Status', 'Owner', 'Date', 'Next step', 'Fee', 'Invoice'].map((h) => (

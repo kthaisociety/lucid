@@ -60,7 +60,7 @@ function gmailOwner(url: string): string | null {
 }
 
 const field =
-  'w-full rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800 focus:border-indigo-300 focus:outline-none'
+  'w-full rounded-md border border-gray-200 bg-surface px-2 py-1 text-xs text-gray-800 focus:border-indigo-300 focus:outline-none'
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -151,14 +151,14 @@ export default function DealDetailDrawer({
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
-      <button type="button" aria-label="Close details" tabIndex={-1} onClick={onClose} className="absolute inset-0 bg-gray-900/20" />
+      <button type="button" aria-label="Close details" tabIndex={-1} onClick={onClose} className="absolute inset-0 bg-black/30" />
       <aside
         ref={dialog}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={deal.company}
-        className="relative flex h-full w-[440px] max-w-full flex-col border-l focus:outline-none border-gray-200 bg-white shadow-xl"
+        className="relative flex h-full w-[440px] max-w-full flex-col border-l focus:outline-none border-gray-200 bg-surface shadow-xl"
       >
         <header className="flex items-start justify-between gap-3 border-b border-gray-200 px-5 py-4">
           <div>
@@ -192,7 +192,7 @@ export default function DealDetailDrawer({
               <select
                 value={deal.status}
                 onChange={(e) => onChange({ status: e.target.value as Status })}
-                className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-800"
+                className="rounded-lg border border-gray-200 bg-surface px-2 py-1.5 text-xs font-semibold text-gray-800"
               >
                 {STATUSES.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -483,7 +483,7 @@ export default function DealDetailDrawer({
               onBlur={() => notes.trim() !== deal.notes && onChange({ notes: notes.trim() })}
               rows={3}
               placeholder="Anything worth knowing about this deal"
-              className="mt-1.5 w-full resize-y rounded-lg border border-gray-200 bg-gray-50 p-2.5 text-xs font-normal text-gray-700 placeholder-gray-400 focus:border-indigo-300 focus:bg-white focus:outline-none"
+              className="mt-1.5 w-full resize-y rounded-lg border border-gray-200 bg-gray-50 p-2.5 text-xs font-normal text-gray-700 placeholder-gray-400 focus:border-indigo-300 focus:bg-surface focus:outline-none"
             />
           </label>
 
@@ -523,7 +523,7 @@ export default function DealDetailDrawer({
               <button
                 type="submit"
                 disabled={!note.trim() || savingNote}
-                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"
+                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-40"
               >
                 {savingNote ? 'Saving…' : 'Save Note'}
               </button>
@@ -538,7 +538,7 @@ export default function DealDetailDrawer({
                 const source = sourceLabels[activity.source]
                 return (
                   <li key={activity.id} className="relative">
-                    <span className="absolute top-0 -left-[25px] flex h-[17px] w-[17px] items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500">
+                    <span className="absolute top-0 -left-[25px] flex h-[17px] w-[17px] items-center justify-center rounded-full border border-gray-200 bg-surface text-gray-500">
                       <Icon size={10} aria-hidden />
                     </span>
                     <div className="flex items-baseline justify-between gap-2">

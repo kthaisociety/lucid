@@ -52,7 +52,7 @@ export default function KanbanColumn({ status, label, deals, onSelect, onMove }:
         <div className="flex items-center gap-2">
           <span className={`h-2 w-2 rounded-full ${statusColors[status]}`} aria-hidden />
           <h2 className="font-display text-xs font-bold text-gray-700">{label}</h2>
-          <span className="rounded-full bg-white px-1.5 text-[11px] font-semibold text-gray-500">
+          <span className="rounded-full bg-surface px-1.5 text-[11px] font-semibold text-gray-500">
             {deals.length}
           </span>
         </div>

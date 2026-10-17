@@ -34,6 +34,7 @@ import NewLeadDialog from './components/drawer/NewLeadDialog'
 import GmailBar from './components/layout/GmailBar'
 import Header from './components/layout/Header'
 import Sidebar, { MobileNav } from './components/layout/Sidebar'
+import { useTheme } from './theme'
 import CompaniesPage, { type CompanyActions } from './components/pages/CompaniesPage'
 import ContactsPage, { type ContactActions } from './components/pages/ContactsPage'
 import ReportsPage from './components/pages/ReportsPage'
@@ -88,6 +89,7 @@ const fetchAll = async (signal?: AbortSignal): Promise<Data> => {
 export default function App() {
   useMinuteTick()
   const [user, setUser] = useState<User | null>(null)
+  const [theme, setTheme] = useTheme()
   const [userError, setUserError] = useState<string | null>(null)
   // No one is signed in, or the session ended: the sign-in page shows instead of the app.
   const [signedOut, setSignedOut] = useState(false)
@@ -426,7 +428,7 @@ export default function App() {
         canAddLead={user !== null && data !== null}
         onNewLead={() => setAddingLead(true)}
       />
-      <MobileNav user={user} onSignOut={() => void leave()} onDisconnectGmail={() => void disconnect()} />
+      <MobileNav user={user} theme={theme} onTheme={setTheme} onSignOut={() => void leave()} onDisconnectGmail={() => void disconnect()} />
       <GmailBar
         outcome={gmailOutcome}
         ask={(user?.gmail === 'not-connected' || user?.gmail === 'reconnect') && !gmailLater}
@@ -435,7 +437,7 @@ export default function App() {
         onDismissOutcome={() => setGmailOutcome(null)}
       />
       <div className="flex min-h-0 flex-1">
-        <Sidebar user={user} userError={userError} onSignOut={() => void leave()} onDisconnectGmail={() => void disconnect()} />
+        <Sidebar user={user} userError={userError} theme={theme} onTheme={setTheme} onSignOut={() => void leave()} onDisconnectGmail={() => void disconnect()} />
         <main className="flex min-w-0 flex-1 flex-col">
           {notice && (
             <p role="alert" className="mx-6 mt-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">

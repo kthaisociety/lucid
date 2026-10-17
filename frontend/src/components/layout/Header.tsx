@@ -20,7 +20,7 @@ export default function Header(props: Props) {
   const { canAddLead, onNewLead } = props
 
   return (
-    <header className="z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 md:px-6">
+    <header className="z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-surface px-4 md:px-6">
       <div className="flex min-w-0 items-center gap-3 md:gap-4">
         <div className="flex items-center gap-2.5 sm:border-r sm:border-gray-200 sm:pr-4">
           <Logo className="shrink-0 shadow-sm" />
@@ -72,7 +72,7 @@ export default function Header(props: Props) {
           disabled={!canAddLead}
           title={canAddLead ? undefined : 'Available once you are signed in'}
           aria-label="New Lead"
-          className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 sm:px-3.5"
+          className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:px-3.5"
         >
           <Plus size={14} aria-hidden />
           <span className="hidden sm:inline">New Lead</span>
