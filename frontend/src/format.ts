@@ -25,3 +25,6 @@ export function initialsOf(name: string): string {
 export function messageOf(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
+
+// A rate as a whole percentage, or a dash when there is none yet.
+export const percent = (rate: number | null) => (rate === null ? '—' : `${Math.round(rate * 100)}%`)

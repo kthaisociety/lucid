@@ -108,7 +108,16 @@ export function stubApi(
     if (method === 'GET' && path === '/api/me') {
       if (!api.members.some((m) => m.id === devMember.id)) api.members.push({ ...devMember, role })
       const me = api.members.find((m) => m.id === devMember.id)!
-      return options.me ? options.me() : json({ ...devUser, memberId: me.id, role: me.role, canSignOut: !!options.signedIn, gmail })
+      return options.me
+        ? options.me()
+        : json({ ...devUser, memberId: me.id, role: me.role, title: me.title ?? '', canSignOut: !!options.signedIn, gmail })
+    }
+    if (method === 'PATCH' && path === '/api/me') {
+      // Only the title: a role is an admin's to give, and the name comes from sign-in.
+      if (Object.keys(body).some((k) => k !== 'title')) return error(400, `${Object.keys(body).find((k) => k !== 'title')} can't be changed`)
+      const me = api.members.find((m) => m.id === devMember.id)!
+      me.title = (body.title as string).trim()
+      return json(me)
     }
     if (method === 'GET' && path === '/api/members') return json(withGmail(api.members))
     if (method === 'DELETE' && path === '/api/gmail') {
@@ -193,7 +202,7 @@ export function stubApi(
       const found = api.members.find((m) => m.id === member[1])
       if (!found) return error(404, 'team member not found')
       const admins = api.members.filter((m) => m.role === 'admin').length
-      if (found.role === 'admin' && admins === 1 && (method === 'DELETE' || body.role !== 'admin')) {
+      if (found.role === 'admin' && admins === 1 && (method === 'DELETE' || (body.role !== undefined && body.role !== 'admin'))) {
         return error(409, 'the team needs at least one admin')
       }
       if (method === 'PATCH') {

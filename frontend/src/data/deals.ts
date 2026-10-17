@@ -66,9 +66,10 @@ export const ROLES: { id: Role; label: string }[] = [
 // Reports are for the board and admins (docs/adr/0003).
 export const canSeeReports = (role: Role | undefined) => role === 'admin' || role === 'board'
 
-// A business-team member: a deal's owner or support, or someone on the Team page.
-// gmailConnected is there only where Connect Gmail is on (docs/adr/0006).
-export type Person = { id: string; name: string; email: string; role?: Role; gmailConnected?: boolean }
+// A business-team member: a deal's owner or support, or someone on the Team page. Their title
+// ("Partnerships Lead") only describes them; their role is what they may do. gmailConnected is there only
+// where Connect Gmail is on (docs/adr/0006).
+export type Person = { id: string; name: string; email: string; role?: Role; title?: string; gmailConnected?: boolean }
 
 export type Company = { id: string; name: string; website: string; notes: string }
 

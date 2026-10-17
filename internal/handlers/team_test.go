@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -98,4 +99,52 @@ func TestAnAdminHandsOverOnTheTeamPage(t *testing.T) {
 			assert.Equal(t, "admin", m.Role)
 		}
 	}
+}
+
+func TestMembersSetTheirOwnTitle(t *testing.T) {
+	r := newTeamRouter(t) // the dev user is a plain member
+
+	w := send(r, http.MethodPatch, "/api/me", `{"title":"  Partnerships Lead "}`)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Equal(t, "Partnerships Lead", decode[deals.MemberView](t, w).Title)
+	assert.Equal(t, "Partnerships Lead", decode[map[string]any](t, get(r, "/api/me"))["title"])
+	assert.Equal(t, "Partnerships Lead", decode[[]deals.MemberView](t, get(r, "/api/members"))[0].Title)
+
+	// 100 characters, not bytes: a title in Greek fits too.
+	w = send(r, http.MethodPatch, "/api/me", `{"title":"`+strings.Repeat("Ω", 100)+`"}`)
+	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	for _, body := range []string{
+		`{"title":"` + strings.Repeat("a", 101) + `"}`,
+		`{"role":"admin"}`, // a role is an admin's to give
+		`{"name":"Someone Else"}`,
+		`{"title":null}`,
+	} {
+		w := send(r, http.MethodPatch, "/api/me", body)
+		assert.Equal(t, http.StatusBadRequest, w.Code, body)
+	}
+	me := decode[map[string]any](t, get(r, "/api/me"))
+	assert.Equal(t, "member", me["role"])
+	assert.Equal(t, strings.Repeat("Ω", 100), me["title"])
+
+	w = send(r, http.MethodPatch, "/api/me", `{"title":""}`)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Empty(t, decode[deals.MemberView](t, w).Title, "clearing it")
+}
+
+func TestAdminsGiveTitles(t *testing.T) {
+	r := newTeamRouter(t, devUser.Email)
+
+	w := send(r, http.MethodPost, "/api/members", `{"email":"maja@example.com","name":"Maja Holm","title":"Head of Business"}`)
+	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+	maja := decode[deals.MemberView](t, w)
+	assert.Equal(t, "Head of Business", maja.Title)
+
+	w = send(r, http.MethodPatch, "/api/members/"+maja.ID, `{"title":"Partnerships Lead"}`)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Equal(t, "Partnerships Lead", decode[deals.MemberView](t, w).Title)
+
+	long := strings.Repeat("a", 101)
+	assert.Equal(t, http.StatusBadRequest, send(r, http.MethodPatch, "/api/members/"+maja.ID, `{"title":"`+long+`"}`).Code)
+	assert.Equal(t, http.StatusBadRequest, send(r, http.MethodPost, "/api/members", `{"email":"noah@example.com","name":"Noah Ek","title":"`+long+`"}`).Code)
 }

@@ -1,4 +1,4 @@
-import { BarChart3, Building2, KanbanSquare, LogOut, Mail, UserCog, Users } from 'lucide-react'
+import { BarChart3, Building2, KanbanSquare, LogOut, Mail, UserCog, UserRound, Users } from 'lucide-react'
 import { NavLink } from 'react-router'
 import type { User } from '../../api'
 import { canSeeReports } from '../../data/deals'
@@ -17,6 +17,7 @@ type Props = {
 
 const pages = [
   { label: 'Pipeline', icon: KanbanSquare, path: '/' },
+  { label: 'My page', icon: UserRound, path: '/me' },
   { label: 'Companies', icon: Building2, path: '/companies' },
   { label: 'Contacts', icon: Users, path: '/contacts' },
   { label: 'Reports', icon: BarChart3, path: '/reports', boardOnly: true },

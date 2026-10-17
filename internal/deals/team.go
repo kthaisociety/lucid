@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -78,11 +79,23 @@ type MemberInput struct {
 	Email string `json:"email"`
 	Name  string `json:"name"`
 	Role  string `json:"role"`
+	Title string `json:"title"`
+}
+
+// maxTitle is the longest title a member can have, as the database allows.
+const maxTitle = 100
+
+func checkTitle(title string) error {
+	if utf8.RuneCountInString(title) > maxTitle {
+		return invalid("a title is limited to %d characters", maxTitle)
+	}
+	return nil
 }
 
 func (in *MemberInput) validate() error {
 	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
 	in.Name = strings.TrimSpace(in.Name)
+	in.Title = strings.TrimSpace(in.Title)
 	if in.Role == "" {
 		in.Role = "member"
 	}
@@ -94,6 +107,9 @@ func (in *MemberInput) validate() error {
 	case !slices.Contains(Roles, in.Role):
 		return invalid("role must be one of %s", strings.Join(Roles, ", "))
 	}
+	if err := checkTitle(in.Title); err != nil {
+		return err
+	}
 	return tooLong(in.Email, in.Name)
 }
 
@@ -101,7 +117,7 @@ func (s *Store) AddMember(ctx context.Context, in MemberInput) (MemberView, erro
 	if err := in.validate(); err != nil {
 		return MemberView{}, err
 	}
-	m := Member{Email: in.Email, Name: in.Name, Role: in.Role}
+	m := Member{Email: in.Email, Name: in.Name, Role: in.Role, Title: in.Title}
 	err := s.db.WithContext(ctx).Create(&m).Error
 	if isUniqueViolation(err) {
 		return MemberView{}, conflict("%s is already on the team", in.Email)
@@ -109,11 +125,16 @@ func (s *Store) AddMember(ctx context.Context, in MemberInput) (MemberView, erro
 	return viewOfMember(m), err
 }
 
-// ParseMemberPatch reads a PATCH to a team member: name or role.
+// ParseMemberPatch reads an admin's PATCH to a team member: name, role or title.
 func ParseMemberPatch(body []byte) (map[string]any, error) {
-	cols, err := textPatch(body, map[string]string{"name": "name", "role": "role"})
+	cols, err := textPatch(body, map[string]string{"name": "name", "role": "role", "title": "title"})
 	if err != nil {
 		return nil, err
+	}
+	if title, ok := cols["title"].(string); ok {
+		if err := checkTitle(title); err != nil {
+			return nil, err
+		}
 	}
 	if cols["name"] == "" {
 		return nil, invalid("a team member needs a name")
@@ -144,6 +165,35 @@ func (s *Store) UpdateMember(ctx context.Context, id string, cols map[string]any
 			return err
 		}
 		return tx.Where("id = ?", id).Take(&m).Error
+	})
+	return viewOfMember(m), err
+}
+
+// ParseProfilePatch reads a member's PATCH to themselves: only their title, since their name comes from
+// sign-in and their role is an admin's to give.
+func ParseProfilePatch(body []byte) (map[string]any, error) {
+	cols, err := textPatch(body, map[string]string{"title": "title"})
+	if err != nil {
+		return nil, err
+	}
+	if err := checkTitle(cols["title"].(string)); err != nil {
+		return nil, err
+	}
+	return cols, nil
+}
+
+// UpdateProfile changes the signed-in user's own member row with what ParseProfilePatch read.
+func (s *Store) UpdateProfile(ctx context.Context, u auth.User, cols map[string]any) (MemberView, error) {
+	var m Member
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		if m, err = s.memberFor(tx, u); err != nil {
+			return err
+		}
+		if err := tx.Model(&Member{}).Where("id = ?", m.ID).Updates(cols).Error; err != nil {
+			return err
+		}
+		return tx.Where("id = ?", m.ID).Take(&m).Error
 	})
 	return viewOfMember(m), err
 }

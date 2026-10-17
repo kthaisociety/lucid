@@ -23,6 +23,10 @@ Words as this project uses them.
   **board** or **member** ([ADR 0003](docs/adr/0003-team-members-and-roles.md)). A new environment's
   first admin is **appointed** once with a command; after that an admin **hands over** to the next head of
   business on the Team page ([ADR 0005](docs/adr/0005-appoint-the-first-admin-once.md)).
+- **Title**: what a team member does on the business team, e.g. "Partnerships Lead". It only describes
+  them; their role is what they may do. They set it on My page, or an admin sets it on the Team page.
+- **My page**: the signed-in member's own page: their profile (title, Gmail, sign-out) and the semester's
+  numbers for the deals they own, what's waiting on them, and what they support.
 - **Owner** and **Support**: the team member who runs a deal, and the members who help. A lead can have no
   owner yet; anyone can **claim** it (assign it to themselves) or assign it to someone else.
 - **Next step**: the one thing to do next on a deal, with an optional due date.

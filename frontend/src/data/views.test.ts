@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { fixtureCompanies, fixtureContacts, fixtureDeals, lastSemester, thisSemester } from '../test/fixtures'
-import { companiesFrom, contactsFrom, reportFor } from './views'
+import type { Deal } from './deals'
+import { companiesFrom, contactsFrom, myStatsFor, reportFor } from './views'
 
 test('a company gathers its deals from every semester, newest first, and its contacts', () => {
   const granit = companiesFrom(fixtureCompanies, fixtureContacts, fixtureDeals).find((r) => r.company.name === 'Granit Consulting')!
@@ -68,4 +69,32 @@ test('reports count teammates who share a name separately', () => {
     { label: 'Kim Ek (kim1@example.com)', value: 2 },
     { label: 'Kim Ek (kim2@example.com)', value: 1 },
   ])
+})
+
+test('a member’s stats count the deals they own, and list the ones they support', () => {
+  const maja = myStatsFor('m-maja', thisSemester, fixtureDeals)
+
+  expect(maja.report).toMatchObject({ deals: 2, open: 2, won: 1, confirmedSEK: 40_000 })
+  expect(maja.supporting.map((d) => d.company)).toEqual(['Lumen Health'])
+  expect(maja.history.map((r) => [r.semester, r.confirmedSEK])).toEqual([
+    [thisSemester, 40_000],
+    [lastSemester, 15_000],
+  ])
+  expect(myStatsFor('m-nobody', thisSemester, fixtureDeals)).toMatchObject({ report: { deals: 0 }, supporting: [], waiting: [], history: [] })
+})
+
+test('what waits on a member comes most pressing first: overdue, their turn, no reply, then quiet', () => {
+  const now = Date.parse('2026-10-20T12:00:00Z')
+  const daysAgo = (n: number) => new Date(now - n * 86_400_000).toISOString()
+  const base = { ...fixtureDeals[0], owner: { id: 'm-me', name: 'Me', email: 'me@example.com' }, semester: thisSemester, status: 'discussing' as const, nextStepDue: null }
+  const email = (direction: 'sent' | 'received', at: string) => [{ id: 'e', type: 'email' as const, source: 'email_sync' as const, title: 'Re: hi', body: '', timestamp: at, direction }]
+  const deals: Deal[] = [
+    { ...base, id: 'quiet', company: 'Quiet', activities: [{ ...email('sent', daysAgo(10))[0], type: 'note', direction: undefined }] },
+    { ...base, id: 'late1', company: 'Late by 1', nextStepDue: '2026-10-19', activities: [] },
+    { ...base, id: 'turn', company: 'Their email', activities: email('received', daysAgo(3)) },
+    { ...base, id: 'noreply', company: 'Our email', activities: email('sent', daysAgo(6)) },
+    { ...base, id: 'late5', company: 'Late by 5', nextStepDue: '2026-10-15', activities: [] },
+  ]
+
+  expect(myStatsFor('m-me', thisSemester, deals, now).waiting.map((d) => d.id)).toEqual(['late5', 'late1', 'turn', 'noreply', 'quiet'])
 })

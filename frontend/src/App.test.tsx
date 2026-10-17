@@ -1253,6 +1253,126 @@ test('a failed edit reads the deal again when the last save’s value is unknown
   await waitFor(() => expect(screen.getByLabelText('Status')).toHaveValue('discussing'))
 })
 
+test('My page shows who you are, your Gmail, and how your deals are going', async () => {
+  api = stubApi({ signedIn: true, gmail: 'connected' })
+  // Dev takes over Maja's deals, as owner and as support.
+  const dev = { id: 'm-dev', name: 'Dev User', email: 'dev@kthais.com' }
+  for (const deal of api.deals) {
+    if (deal.owner?.id === 'm-maja') deal.owner = dev
+    deal.support = deal.support.map((p) => (p.id === 'm-maja' ? dev : p))
+  }
+  renderAt('/me')
+
+  const profile = await screen.findByRole('region', { name: 'Profile' })
+  expect(profile).toHaveTextContent('Dev User')
+  expect(profile).toHaveTextContent('Admin')
+  expect(within(profile).getByRole('button', { name: 'Disconnect Gmail' })).toBeInTheDocument()
+  expect(within(profile).getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: `Your deals · ${thisSemester}` })).toBeInTheDocument()
+  expect(screen.getByText('Confirmed', { selector: 'p' }).parentElement).toHaveTextContent('40,000 SEK')
+  expect(screen.getByRole('region', { name: 'Your semesters' })).toHaveTextContent(lastSemester)
+
+  // Lumen Health has gone quiet and Dev doesn't own it, so it isn't waiting on them.
+  expect(screen.getByRole('region', { name: 'Waiting on you' })).not.toHaveTextContent('Lumen Health')
+  fireEvent.click(within(screen.getByRole('region', { name: 'Supporting' })).getByRole('button', { name: 'Lumen Health' }))
+  expect(screen.getByRole('dialog', { name: 'Lumen Health' })).toBeInTheDocument()
+})
+
+test('My page lists your deals that need you, and opens them', async () => {
+  for (const deal of api.deals) if (deal.company === 'Kvarnholmen AI') deal.owner = { id: 'm-dev', name: 'Dev User', email: 'dev@kthais.com' }
+  renderAt('/me')
+
+  const waiting = await screen.findByRole('region', { name: 'Waiting on you' })
+  expect(waiting).toHaveTextContent('Waiting on you (1)')
+  fireEvent.click(within(waiting).getByRole('button', { name: 'Kvarnholmen AI' }))
+  expect(screen.getByRole('dialog', { name: 'Kvarnholmen AI' })).toBeInTheDocument()
+})
+
+test('My page offers to connect or reconnect Gmail', async () => {
+  api = stubApi({ gmail: 'reconnect' })
+  renderAt('/me')
+
+  const profile = await screen.findByRole('region', { name: 'Profile' })
+  expect(within(profile).getByRole('link', { name: 'Reconnect Gmail' })).toHaveAttribute('href', '/auth/gmail/connect')
+  expect(within(profile).queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument() // the dev user
+})
+
+test('you set your own title on My page, and the team sees it', async () => {
+  renderAt('/me')
+  const title = await screen.findByLabelText('Your title')
+
+  fireEvent.change(title, { target: { value: ' Partnerships Lead ' } })
+  fireEvent.blur(title)
+
+  await waitFor(() => expect(api.requests.filter((r) => r.path === '/api/me' && r.method === 'PATCH').map((r) => r.body)).toEqual([{ title: 'Partnerships Lead' }]))
+  await waitFor(() => expect(screen.getByLabelText('Your title')).toHaveValue('Partnerships Lead'))
+  goTo('Team')
+  const me = (await screen.findByText('(you)')).closest('tr')!
+  expect(me).toHaveTextContent('Partnerships Lead')
+})
+
+test('a title that fails to save goes back, with the reason', async () => {
+  renderAt('/me')
+  const title = await screen.findByLabelText('Your title')
+  api.fail('PATCH', /^\/api\/me$/, 400, 'a title is limited to 100 characters')
+
+  fireEvent.change(title, { target: { value: 'Head of Everything' } })
+  fireEvent.blur(title)
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('a title is limited to 100 characters')
+  expect(title).toHaveValue('')
+})
+
+test('an admin gives a new member a title', async () => {
+  renderAt('/team')
+  fireEvent.click(await screen.findByRole('button', { name: 'Add member' }))
+  const form = await dialogNamed('Add member')
+  fireEvent.change(within(form).getByLabelText('Name'), { target: { value: 'Mia Lind' } })
+  fireEvent.change(within(form).getByLabelText('Email'), { target: { value: 'mia@example.com' } })
+  fireEvent.change(within(form).getByLabelText(/Title/), { target: { value: 'Head of Business' } })
+  fireEvent.click(within(form).getByRole('button', { name: 'Add member' }))
+
+  const mia = (await screen.findByText('Mia Lind')).closest('tr')!
+  expect(mia).toHaveTextContent('Head of Business')
+})
+
+test('typing while your title saves keeps the newer text, and saves it next', async () => {
+  renderAt('/me')
+  const title = await screen.findByLabelText('Your title')
+  const saving = api.hold('PATCH', /^\/api\/me$/, { once: true })
+
+  fireEvent.change(title, { target: { value: 'Partnerships Lead' } })
+  fireEvent.blur(title)
+  fireEvent.focus(title)
+  fireEvent.change(title, { target: { value: 'Partnerships Lead, Europe' } })
+  await saving.release()
+  await waitFor(() => expect(api.members.find((m) => m.id === 'm-dev')?.title).toBe('Partnerships Lead'))
+  await settle()
+
+  expect(title).toHaveValue('Partnerships Lead, Europe')
+  fireEvent.blur(title)
+  await waitFor(() => expect(screen.getByLabelText('Your title')).toHaveValue('Partnerships Lead, Europe'))
+  expect(api.requests.filter((r) => r.path === '/api/me' && r.method === 'PATCH').map((r) => r.body)).toEqual([
+    { title: 'Partnerships Lead' },
+    { title: 'Partnerships Lead, Europe' },
+  ])
+})
+
+test('a failed title save doesn’t erase what you typed since', async () => {
+  renderAt('/me')
+  const title = await screen.findByLabelText('Your title')
+  api.failOnce('PATCH', /^\/api\/me$/, 500, 'something went wrong')
+  const saving = api.hold('PATCH', /^\/api\/me$/, { once: true })
+
+  fireEvent.change(title, { target: { value: 'Head of Everything' } })
+  fireEvent.blur(title)
+  fireEvent.change(title, { target: { value: 'Partnerships Lead' } })
+  await saving.release()
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('something went wrong')
+  expect(title).toHaveValue('Partnerships Lead')
+})
+
 test('the deal panel edits the deal’s details', async () => {
   await renderApp()
   const drawer = open('Granit Consulting')
@@ -1375,4 +1495,40 @@ test('the deal panel edits links, and opens only web addresses', async () => {
   expect(within(drawer).queryByRole('link', { name: 'Open Write-up' })).not.toBeInTheDocument()
   expect(await screen.findByText(/must be a web address/)).toBeInTheDocument()
   expect(writeUp).toHaveValue('')
+})
+
+test('title saves go out one at a time, so the newest one wins', async () => {
+  renderAt('/me')
+  const title = await screen.findByLabelText('Your title')
+  const first = api.hold('PATCH', /^\/api\/me$/, { late: true, once: true })
+  const sent = () => api.requests.filter((r) => r.path === '/api/me' && r.method === 'PATCH').map((r) => r.body)
+
+  fireEvent.change(title, { target: { value: 'Partnerships Lead' } })
+  fireEvent.blur(title)
+  fireEvent.change(title, { target: { value: 'Head of Business' } })
+  fireEvent.blur(title)
+  await settle()
+  expect(sent()).toEqual([{ title: 'Partnerships Lead' }]) // the newer one waits
+
+  await first.release()
+  await waitFor(() => expect(sent()).toEqual([{ title: 'Partnerships Lead' }, { title: 'Head of Business' }]))
+  await waitFor(() => expect(api.members.find((m) => m.id === 'm-dev')?.title).toBe('Head of Business'))
+  await waitFor(() => expect(title).toHaveValue('Head of Business'))
+})
+
+test('going back to the saved title while another save is under way saves it too', async () => {
+  api.members.find((m) => m.id === 'm-dev')!.title = 'Partnerships Lead'
+  renderAt('/me')
+  const title = await screen.findByLabelText('Your title')
+  await waitFor(() => expect(title).toHaveValue('Partnerships Lead'))
+  const first = api.hold('PATCH', /^\/api\/me$/, { late: true, once: true })
+
+  fireEvent.change(title, { target: { value: 'Head of Business' } })
+  fireEvent.blur(title)
+  fireEvent.change(title, { target: { value: 'Partnerships Lead' } })
+  fireEvent.blur(title)
+  await first.release()
+
+  await waitFor(() => expect(api.members.find((m) => m.id === 'm-dev')?.title).toBe('Partnerships Lead'))
+  await waitFor(() => expect(title).toHaveValue('Partnerships Lead'))
 })
