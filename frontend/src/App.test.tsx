@@ -1331,3 +1331,40 @@ test('an admin gives a new member a title', async () => {
   const mia = (await screen.findByText('Mia Lind')).closest('tr')!
   expect(mia).toHaveTextContent('Head of Business')
 })
+
+test('typing while your title saves keeps the newer text, and saves it next', async () => {
+  renderAt('/me')
+  const title = await screen.findByLabelText('Your title')
+  const saving = api.hold('PATCH', /^\/api\/me$/, { once: true })
+
+  fireEvent.change(title, { target: { value: 'Partnerships Lead' } })
+  fireEvent.blur(title)
+  fireEvent.focus(title)
+  fireEvent.change(title, { target: { value: 'Partnerships Lead, Europe' } })
+  await saving.release()
+  await waitFor(() => expect(api.members.find((m) => m.id === 'm-dev')?.title).toBe('Partnerships Lead'))
+  await settle()
+
+  expect(title).toHaveValue('Partnerships Lead, Europe')
+  fireEvent.blur(title)
+  await waitFor(() => expect(screen.getByLabelText('Your title')).toHaveValue('Partnerships Lead, Europe'))
+  expect(api.requests.filter((r) => r.path === '/api/me' && r.method === 'PATCH').map((r) => r.body)).toEqual([
+    { title: 'Partnerships Lead' },
+    { title: 'Partnerships Lead, Europe' },
+  ])
+})
+
+test('a failed title save doesn’t erase what you typed since', async () => {
+  renderAt('/me')
+  const title = await screen.findByLabelText('Your title')
+  api.failOnce('PATCH', /^\/api\/me$/, 500, 'something went wrong')
+  const saving = api.hold('PATCH', /^\/api\/me$/, { once: true })
+
+  fireEvent.change(title, { target: { value: 'Head of Everything' } })
+  fireEvent.blur(title)
+  fireEvent.change(title, { target: { value: 'Partnerships Lead' } })
+  await saving.release()
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('something went wrong')
+  expect(title).toHaveValue('Partnerships Lead')
+})

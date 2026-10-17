@@ -4,7 +4,6 @@ import type { User } from '../../api'
 import { ROLES, nudgeFor, statusLabel, type Deal } from '../../data/deals'
 import { myStatsFor } from '../../data/views'
 import { formatSEK, messageOf, percent } from '../../format'
-import { useDraft } from '../../hooks'
 import { NudgeBadge } from '../badges'
 import OwnerAvatar from '../OwnerAvatar'
 import { PageTitle, cell, headCell } from './common'
@@ -23,16 +22,25 @@ type Props = {
 // Your title on the team, in your own words: saved when you leave the field. Only a description: what
 // you may do is your role, which an admin gives.
 function TitleField({ title, onSave }: { title: string; onSave: (title: string) => Promise<void> }) {
-  const [draft, setDraft] = useDraft(title)
+  const [draft, setDraft] = useState(title)
+  const [seen, setSeen] = useState(title)
   const [error, setError] = useState<string | null>(null)
+  // A new title from outside (a save's answer, say) shows unless you've typed something else since: a
+  // save that answers while you edit again mustn't erase the newer text.
+  if (title !== seen) {
+    setSeen(title)
+    if (draft === seen || draft.trim() === title) setDraft(title)
+  }
   const save = async () => {
-    const next = draft.trim()
+    const submitted = draft
+    const next = submitted.trim()
     if (next === title) return
     setError(null)
     try {
       await onSave(next)
     } catch (err) {
-      setDraft(title)
+      // Back to the saved title, unless you've typed something else since.
+      setDraft((current) => (current === submitted ? title : current))
       setError(`Couldn't save your title: ${messageOf(err)}`)
     }
   }
