@@ -427,3 +427,31 @@ func TestTwoFirstAppointmentsAtOnce(t *testing.T) {
 	conflictError(t, <-second)
 	assert.Equal(t, 1, adminCount(t, s))
 }
+
+// A member being removed while a deal is given them as support: the update waits for the removal, and is
+// then refused, rather than failing on the foreign key.
+func TestSupportWaitsForARemoval(t *testing.T) {
+	db := databasetest.Open(t)
+	s := deals.NewStore(db)
+	ctx := context.Background()
+	d := addLead(t, s, "Nordljus AB")
+	maja, err := s.AddMember(ctx, deals.MemberInput{Email: "maja@example.com", Name: "Maja Holm"})
+	require.NoError(t, err)
+
+	removal := db.Begin()
+	defer removal.Rollback()
+	require.NoError(t, removal.Exec("SELECT 1 FROM members WHERE id = ? FOR UPDATE", maja.ID).Error)
+	require.NoError(t, removal.Exec("DELETE FROM members WHERE id = ?", maja.ID).Error)
+	updated := make(chan error, 1)
+	go func() {
+		cols, err := deals.ParsePatch([]byte(`{"supportIds":["` + maja.ID + `"]}`))
+		require.NoError(t, err)
+		_, err = s.Update(ctx, d.ID, cols)
+		updated <- err
+	}()
+	waitForLockWaits(t, db, 1)
+	require.NoError(t, removal.Commit().Error)
+
+	var invalid *deals.ValidationError
+	assert.ErrorAs(t, <-updated, &invalid)
+}

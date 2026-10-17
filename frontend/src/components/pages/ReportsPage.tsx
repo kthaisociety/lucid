@@ -34,7 +34,7 @@ export default function ReportsPage({ deals, semester, onSelect }: Props) {
         <BarList title="Deals by owner" bars={report.byOwner} />
       </div>
 
-      <section aria-label="Needs follow-up" className="mt-3 rounded-xl border border-gray-200 bg-white p-4">
+      <section aria-label="Needs follow-up" className="mt-3 rounded-xl border border-gray-200 bg-surface p-4">
         <h3 className="text-xs font-semibold text-gray-700">Needs follow-up ({report.needsFollowUp.length})</h3>
         {report.needsFollowUp.length === 0 ? (
           <p className="mt-2 text-xs text-gray-400">Nothing overdue or gone quiet. Nice.</p>
@@ -55,7 +55,7 @@ export default function ReportsPage({ deals, semester, onSelect }: Props) {
 
       <section aria-label="Semesters compared" className="mt-3">
         <h3 className="mb-2 text-xs font-semibold text-gray-700">Semesters compared</h3>
-        <table className="w-full min-w-[640px] border-separate border-spacing-0 overflow-hidden rounded-xl border border-gray-200 bg-white text-left text-xs">
+        <table className="w-full min-w-[640px] border-separate border-spacing-0 overflow-hidden rounded-xl border border-gray-200 bg-surface text-left text-xs">
           <thead className="bg-gray-50 text-[11px] text-gray-500">
             <tr>
               {['Semester', 'Deals', 'Won', 'Canceled', 'Win rate', 'Confirmed', 'Paid'].map((h) => (

@@ -115,7 +115,7 @@ export default function MyPage({ user, deals, semester, onSelect, onSaveTitle, o
 
   return (
     <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 md:px-6">
-      <section aria-label="Profile" className="flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 bg-white p-4">
+      <section aria-label="Profile" className="flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 bg-surface p-4">
         <OwnerAvatar owner={{ id: user.memberId ?? user.sub, name: user.name || user.email, email: user.email }} />
         <div className="min-w-0 flex-1">
           <h2 className="font-display flex items-center gap-2 text-base font-bold text-gray-900">
@@ -161,7 +161,7 @@ export default function MyPage({ user, deals, semester, onSelect, onSaveTitle, o
           </div>
 
           <div className="mt-3 grid gap-3 lg:grid-cols-2">
-            <section aria-label="Waiting on you" className="rounded-xl border border-gray-200 bg-white p-4">
+            <section aria-label="Waiting on you" className="rounded-xl border border-gray-200 bg-surface p-4">
               <h3 className="text-xs font-semibold text-gray-700">Waiting on you ({stats.waiting.length})</h3>
               {stats.waiting.length === 0 ? (
                 <p className="mt-2 text-xs text-gray-400">Nothing overdue or gone quiet. Nice.</p>
@@ -180,7 +180,7 @@ export default function MyPage({ user, deals, semester, onSelect, onSaveTitle, o
           </div>
 
           {stats.supporting.length > 0 && (
-            <section aria-label="Supporting" className="mt-3 rounded-xl border border-gray-200 bg-white p-4">
+            <section aria-label="Supporting" className="mt-3 rounded-xl border border-gray-200 bg-surface p-4">
               <h3 className="text-xs font-semibold text-gray-700">Supporting</h3>
               <ul className="mt-2 space-y-1.5">
                 {stats.supporting.map((deal) => (
@@ -197,7 +197,7 @@ export default function MyPage({ user, deals, semester, onSelect, onSaveTitle, o
           {stats.history.length > 0 && (
             <section aria-label="Your semesters" className="mt-3 overflow-x-auto">
               <h3 className="mb-2 text-xs font-semibold text-gray-700">Your semesters</h3>
-              <table className="w-full min-w-[560px] border-separate border-spacing-0 overflow-hidden rounded-xl border border-gray-200 bg-white text-left text-xs">
+              <table className="w-full min-w-[560px] border-separate border-spacing-0 overflow-hidden rounded-xl border border-gray-200 bg-surface text-left text-xs">
                 <thead className="bg-gray-50 text-[11px] text-gray-500">
                   <tr>
                     {['Semester', 'Deals', 'Won', 'Win rate', 'Confirmed', 'Paid'].map((h) => (

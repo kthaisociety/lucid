@@ -29,7 +29,22 @@ export type EventType =
   | 'Other'
   | 'TBA'
 
+export const EVENT_TYPES: EventType[] = [
+  'Workshop',
+  'Hackathon',
+  'After-Work',
+  'Lunch Lecture',
+  'Networking event',
+  'Panel discussion',
+  'Company visit',
+  'Study-trip',
+  'Job post',
+  'Other',
+  'TBA',
+]
+
 export type Audience = 'Internal' | 'External' | 'Unclear'
+export const AUDIENCES: Audience[] = ['Internal', 'External', 'Unclear']
 
 export type InvoiceStatus = 'not_sent' | 'waiting' | 'paid' | 'cancelled'
 

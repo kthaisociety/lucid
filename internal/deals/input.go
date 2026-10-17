@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -15,6 +16,9 @@ var (
 	dealTypes       = []string{"Event", "Partnership", "Job Post"}
 	statuses        = []string{"lead", "discussing", "agreement", "signed", "finished", "canceled"}
 	invoiceStatuses = []string{"not_sent", "waiting", "paid", "cancelled"}
+	eventTypes      = []string{"Workshop", "Hackathon", "After-Work", "Lunch Lecture", "Networking event",
+		"Panel discussion", "Company visit", "Study-trip", "Job post", "Other", "TBA"}
+	audiences       = []string{"Internal", "External", "Unclear"}
 	semesterPattern = regexp.MustCompile(`^(HT|VT) [0-9]{4}$`)
 )
 
@@ -177,8 +181,12 @@ func ParseContactPatch(body []byte) (map[string]any, error) {
 	return cols, nil
 }
 
-// ParsePatch turns a PATCH body into the columns to update. Only the fields the deal panel edits are
-// accepted; null clears a nullable one.
+// SupportField is the key ParsePatch puts a deal's new support under: the members' ids, deduplicated.
+// It isn't a column: Update replaces the deal's rows in deal_support with them.
+const SupportField = "support"
+
+// ParsePatch turns a PATCH body into the columns to update, and SupportField for the support. Only the
+// fields the deal panel edits are accepted; null clears a nullable one.
 func ParsePatch(body []byte) (map[string]any, error) {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(body, &raw); err != nil {
@@ -192,11 +200,35 @@ func ParsePatch(body []byte) (map[string]any, error) {
 		isNull := string(value) == "null"
 		switch field {
 		case "status":
-			var s string
-			if json.Unmarshal(value, &s) != nil || !slices.Contains(statuses, s) {
-				return nil, invalid("status must be one of %s", strings.Join(statuses, ", "))
+			s, err := oneOf(field, value, statuses)
+			if err != nil {
+				return nil, err
 			}
 			cols["status"] = s
+		case "dealType":
+			s, err := oneOf(field, value, dealTypes)
+			if err != nil {
+				return nil, err
+			}
+			cols["deal_type"] = s
+		case "eventType":
+			s, err := oneOf(field, value, eventTypes)
+			if err != nil {
+				return nil, err
+			}
+			cols["event_type"] = s
+		case "audience":
+			s, err := oneOf(field, value, audiences)
+			if err != nil {
+				return nil, err
+			}
+			cols["audience"] = s
+		case "semester":
+			var s string
+			if json.Unmarshal(value, &s) != nil || !semesterPattern.MatchString(s) {
+				return nil, invalid(`semester must look like "HT 2026" or "VT 2026"`)
+			}
+			cols["semester"] = s
 		case "nextStep":
 			// Not nullable: null would decode to "" and silently erase the next step.
 			var s string
@@ -204,20 +236,18 @@ func ParsePatch(body []byte) (map[string]any, error) {
 				return nil, invalid("nextStep must be text of at most %d characters", maxText)
 			}
 			cols["next_step"] = s
-		case "nextStepDue":
-			if isNull {
-				cols["next_step_due"] = nil
-				continue
-			}
-			var s string
-			if json.Unmarshal(value, &s) != nil {
-				return nil, invalid("nextStepDue must be a date (YYYY-MM-DD) or null")
-			}
-			d, err := ParseDate(s)
+		case "location", "notes":
+			s, err := text(field, value)
 			if err != nil {
-				return nil, invalid("nextStepDue: %v", err)
+				return nil, err
 			}
-			cols["next_step_due"] = d
+			cols[field] = s
+		case "nextStepDue", "startDate", "endDate", "invoiceDue":
+			d, err := dateOrNull(field, value)
+			if err != nil {
+				return nil, err
+			}
+			cols[dateColumns[field]] = d
 		case "feeSEK":
 			if isNull {
 				cols["fee_sek"] = nil
@@ -229,6 +259,16 @@ func ParsePatch(body []byte) (map[string]any, error) {
 				return nil, invalid("feeSEK must be a whole number from 0 to %d, or null", math.MaxInt32)
 			}
 			cols["fee_sek"] = n
+		case "rating":
+			if isNull {
+				cols["rating"] = nil
+				continue
+			}
+			var n int
+			if json.Unmarshal(value, &n) != nil || n < 1 || n > 5 {
+				return nil, invalid("rating must be a whole number from 1 to 5, or null")
+			}
+			cols["rating"] = n
 		case "ownerId":
 			if isNull {
 				cols["owner_id"] = nil
@@ -239,6 +279,27 @@ func ParsePatch(body []byte) (map[string]any, error) {
 				return nil, invalid("ownerId must be a team member's id, or null")
 			}
 			cols["owner_id"] = id
+		case "supportIds":
+			var ids []string
+			if isNull || json.Unmarshal(value, &ids) != nil {
+				return nil, invalid("supportIds must be a list of team members' ids")
+			}
+			support := []string{}
+			for _, id := range ids {
+				if !uuidPattern.MatchString(id) {
+					return nil, invalid("supportIds must be a list of team members' ids")
+				}
+				if id = strings.ToLower(id); !slices.Contains(support, id) {
+					support = append(support, id)
+				}
+			}
+			cols[SupportField] = support
+		case "companyId":
+			var id string
+			if json.Unmarshal(value, &id) != nil || !uuidPattern.MatchString(id) {
+				return nil, invalid("companyId must be a company's id")
+			}
+			cols["company_id"] = id
 		case "contactId":
 			if isNull {
 				cols["contact_id"] = nil
@@ -254,16 +315,95 @@ func ParsePatch(body []byte) (map[string]any, error) {
 				cols["invoice_status"] = nil
 				continue
 			}
-			var s string
-			if json.Unmarshal(value, &s) != nil || !slices.Contains(invoiceStatuses, s) {
+			s, err := oneOf(field, value, invoiceStatuses)
+			if err != nil {
 				return nil, invalid("invoiceStatus must be one of %s, or null", strings.Join(invoiceStatuses, ", "))
 			}
 			cols["invoice_status"] = s
+		case "links":
+			if err := parseLinks(value, cols); err != nil {
+				return nil, err
+			}
 		default:
 			return nil, invalid("%s can't be changed", field)
 		}
 	}
 	return cols, nil
+}
+
+var dateColumns = map[string]string{
+	"nextStepDue": "next_step_due",
+	"startDate":   "start_date",
+	"endDate":     "end_date",
+	"invoiceDue":  "invoice_due",
+}
+
+// linkColumns are the links a deal keeps, by their key in the API's links object.
+var linkColumns = map[string]string{"drive": "drive_url", "contract": "contract_url", "writeUp": "write_up_url"}
+
+// oneOf reads a field that takes one of a few values.
+func oneOf(field string, value json.RawMessage, allowed []string) (string, error) {
+	var s string
+	if json.Unmarshal(value, &s) != nil || !slices.Contains(allowed, s) {
+		return "", invalid("%s must be one of %s", field, strings.Join(allowed, ", "))
+	}
+	return s, nil
+}
+
+// text reads a text field: trimmed, and not null, which would silently erase it; clearing one takes "".
+func text(field string, value json.RawMessage) (string, error) {
+	var s string
+	if string(value) == "null" || json.Unmarshal(value, &s) != nil {
+		return "", invalid("%s must be text", field)
+	}
+	s = strings.TrimSpace(s)
+	if len(s) > maxText {
+		return "", invalid("%s is limited to %d characters", field, maxText)
+	}
+	return s, nil
+}
+
+// dateOrNull reads a date field, which null clears.
+func dateOrNull(field string, value json.RawMessage) (any, error) {
+	if string(value) == "null" {
+		return nil, nil
+	}
+	var s string
+	if json.Unmarshal(value, &s) != nil {
+		return nil, invalid("%s must be a date (YYYY-MM-DD) or null", field)
+	}
+	d, err := ParseDate(s)
+	if err != nil {
+		return nil, invalid("%s: %v", field, err)
+	}
+	return d, nil
+}
+
+// parseLinks reads the links to change: any of drive, contract and writeUp, each a web address or "" to
+// remove it. Links the object leaves out stay as they are. Only http and https: the panel shows them as
+// links, where a javascript: address would run.
+func parseLinks(value json.RawMessage, cols map[string]any) error {
+	var links map[string]json.RawMessage
+	if string(value) == "null" || json.Unmarshal(value, &links) != nil || len(links) == 0 {
+		return invalid("links must be an object with drive, contract or writeUp")
+	}
+	for key, raw := range links {
+		column, ok := linkColumns[key]
+		if !ok {
+			return invalid("links.%s can't be changed", key)
+		}
+		s, err := text("links."+key, raw)
+		if err != nil {
+			return err
+		}
+		if s != "" {
+			if u, err := url.Parse(s); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+				return invalid("links.%s must be a web address (https://…)", key)
+			}
+		}
+		cols[column] = s
+	}
+	return nil
 }
 
 // ParseNote reads the body of a quick note.

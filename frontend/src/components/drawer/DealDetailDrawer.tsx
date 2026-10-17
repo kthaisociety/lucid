@@ -1,20 +1,29 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { ExternalLink, Mail, MessageSquare, StickyNote, Star, Users, X } from 'lucide-react'
 import {
+  AUDIENCES,
+  DEAL_TYPES,
+  EVENT_TYPES,
   INVOICE_STATUSES,
   STATUSES,
+  currentSemester,
   daysSince,
   lastTouchpoint,
   nudgeFor,
+  compareSemesters,
   statusLabel,
   type Activity,
+  type Audience,
+  type Company,
   type Contact,
+  type DealType,
+  type EventType,
   type Deal,
   type Person,
   type InvoiceStatus,
   type Status,
 } from '../../data/deals'
-import { formatDate, formatDateRange } from '../../format'
+import { formatDate } from '../../format'
 import type { DealPatch } from '../../api'
 import { useDraft, useModal } from '../../hooks'
 import { DealTypeBadge, NudgeBadge } from '../badges'
@@ -23,6 +32,7 @@ import OwnerAvatar from '../OwnerAvatar'
 type Props = {
   deal: Deal
   otherDeals: Deal[] // earlier or parallel deals with the same company
+  companies: Company[] // where the deal can move to
   companyContacts: Contact[] // who the deal's contact can be
   members: Person[] // who can own the deal
   meId: string | undefined
@@ -50,7 +60,7 @@ function gmailOwner(url: string): string | null {
 }
 
 const field =
-  'w-full rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800 focus:border-indigo-300 focus:outline-none'
+  'w-full rounded-md border border-gray-200 bg-surface px-2 py-1 text-xs text-gray-800 focus:border-indigo-300 focus:outline-none'
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -64,6 +74,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 export default function DealDetailDrawer({
   deal,
   otherDeals,
+  companies,
   companyContacts,
   members,
   meId,
@@ -77,6 +88,8 @@ export default function DealDetailDrawer({
   const [noteError, setNoteError] = useState<string | null>(null)
   const [nextStep, setNextStep] = useDraft(deal.nextStep)
   const [fee, setFee] = useDraft(deal.feeSEK === null ? '' : String(deal.feeSEK))
+  const [location, setLocation] = useDraft(deal.location)
+  const [notes, setNotes] = useDraft(deal.notes)
 
   const dialog = useRef<HTMLElement>(null)
   useModal(dialog, onClose)
@@ -116,6 +129,12 @@ export default function DealDetailDrawer({
     }
     if (value !== deal.feeSEK) onChange({ feeSEK: value })
   }
+  // An end date needs a start date and can't be before it, so moving the start past the end, or clearing
+  // it, clears the end too.
+  const saveStart = (startDate: string | null) => {
+    if (deal.endDate && (!startDate || startDate > deal.endDate)) onChange({ startDate, endDate: null })
+    else onChange({ startDate })
+  }
   const blurOnEnter = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') e.currentTarget.blur()
   }
@@ -127,22 +146,19 @@ export default function DealDetailDrawer({
   const mailto = deal.contact?.email
     ? `mailto:${deal.contact.email}?subject=${encodeURIComponent(`KTHAIS × ${deal.company}`)}`
     : undefined
-  const links = [
-    ['Drive', deal.links.drive],
-    ['Contract', deal.links.contract],
-    ['Write-up', deal.links.writeUp],
-  ].filter((l): l is [string, string] => Boolean(l[1]))
+  const supportIds = deal.support.map((p) => p.id)
+  const canSupport = members.filter((m) => m.id !== deal.owner?.id && !supportIds.includes(m.id))
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
-      <button type="button" aria-label="Close details" tabIndex={-1} onClick={onClose} className="absolute inset-0 bg-gray-900/20" />
+      <button type="button" aria-label="Close details" tabIndex={-1} onClick={onClose} className="absolute inset-0 bg-black/30" />
       <aside
         ref={dialog}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={deal.company}
-        className="relative flex h-full w-[440px] max-w-full flex-col border-l focus:outline-none border-gray-200 bg-white shadow-xl"
+        className="relative flex h-full w-[440px] max-w-full flex-col border-l focus:outline-none border-gray-200 bg-surface shadow-xl"
       >
         <header className="flex items-start justify-between gap-3 border-b border-gray-200 px-5 py-4">
           <div>
@@ -176,7 +192,7 @@ export default function DealDetailDrawer({
               <select
                 value={deal.status}
                 onChange={(e) => onChange({ status: e.target.value as Status })}
-                className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-800"
+                className="rounded-lg border border-gray-200 bg-surface px-2 py-1.5 text-xs font-semibold text-gray-800"
               >
                 {STATUSES.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -216,6 +232,68 @@ export default function DealDetailDrawer({
           </section>
 
           <dl className="mx-5 mt-4 grid grid-cols-[auto_1fr] items-center gap-x-6 gap-y-1.5 text-xs">
+            <Row label="Company">
+              <select
+                aria-label="Company"
+                value={deal.companyId}
+                onChange={(e) => onChange({ companyId: e.target.value })}
+                className={`${field} w-auto max-w-full`}
+              >
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </Row>
+            <Row label="Type">
+              <span className="flex flex-wrap gap-1.5">
+                <select
+                  aria-label="Deal type"
+                  value={deal.dealType}
+                  onChange={(e) => onChange({ dealType: e.target.value as DealType })}
+                  className={`${field} w-auto`}
+                >
+                  {DEAL_TYPES.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Event type"
+                  value={deal.eventType}
+                  onChange={(e) => onChange({ eventType: e.target.value as EventType })}
+                  className={`${field} w-auto`}
+                >
+                  {EVENT_TYPES.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+              </span>
+            </Row>
+            <Row label="Audience">
+              <select
+                aria-label="Audience"
+                value={deal.audience}
+                onChange={(e) => onChange({ audience: e.target.value as Audience })}
+                className={`${field} w-auto`}
+              >
+                {AUDIENCES.map((a) => (
+                  <option key={a}>{a}</option>
+                ))}
+              </select>
+            </Row>
+            <Row label="Semester">
+              <select
+                aria-label="Semester"
+                value={deal.semester}
+                onChange={(e) => onChange({ semester: e.target.value })}
+                className={`${field} w-auto`}
+              >
+                {semesterOptions(deal.semester).map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </Row>
             <Row label="Owner">
               <span className="flex flex-wrap items-center gap-2">
                 {deal.owner && <OwnerAvatar owner={deal.owner} />}
@@ -243,7 +321,38 @@ export default function DealDetailDrawer({
                 )}
               </span>
             </Row>
-            {deal.support.length > 0 && <Row label="Support">{deal.support.map((p) => p.name).join(', ')}</Row>}
+            <Row label="Support">
+              <span className="flex flex-wrap items-center gap-1.5">
+                {deal.support.map((p) => (
+                  <span key={p.id} className="flex items-center gap-1 rounded-full bg-gray-100 py-0.5 pr-1 pl-2 text-gray-700">
+                    {p.name}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${p.name} from support`}
+                      onClick={() => onChange({ supportIds: supportIds.filter((id) => id !== p.id) })}
+                      className="rounded-full p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+                    >
+                      <X size={10} aria-hidden />
+                    </button>
+                  </span>
+                ))}
+                {canSupport.length > 0 && (
+                  <select
+                    aria-label="Add support"
+                    value=""
+                    onChange={(e) => e.target.value && onChange({ supportIds: [...supportIds, e.target.value] })}
+                    className={`${field} w-auto`}
+                  >
+                    <option value="">Add…</option>
+                    {canSupport.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </span>
+            </Row>
             <Row label="Contact">
               <select
                 aria-label="Contact"
@@ -264,8 +373,39 @@ export default function DealDetailDrawer({
                 </p>
               )}
             </Row>
-            <Row label="Date">{formatDateRange(deal.startDate, deal.endDate) || <span className="text-gray-400">TBA</span>}</Row>
-            {deal.location && <Row label="Location">{deal.location}</Row>}
+            <Row label="Date">
+              <span className="flex flex-wrap items-center gap-1.5">
+                <input
+                  type="date"
+                  aria-label="Start date"
+                  value={deal.startDate ?? ''}
+                  onChange={(e) => saveStart(e.target.value || null)}
+                  className={`${field} w-auto`}
+                />
+                <span className="text-gray-400">to</span>
+                <input
+                  type="date"
+                  aria-label="End date"
+                  value={deal.endDate ?? ''}
+                  min={deal.startDate ?? undefined}
+                  disabled={!deal.startDate}
+                  title={deal.startDate ? undefined : 'Set a start date first'}
+                  onChange={(e) => onChange({ endDate: e.target.value || null })}
+                  className={`${field} w-auto disabled:opacity-50`}
+                />
+              </span>
+            </Row>
+            <Row label="Location">
+              <input
+                aria-label="Location"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                onBlur={() => location.trim() !== deal.location && onChange({ location: location.trim() })}
+                onKeyDown={blurOnEnter}
+                placeholder="TBA"
+                className={field}
+              />
+            </Row>
             <Row label="Last touchpoint">
               {lastDays === null ? '—' : lastDays === 0 ? 'Today' : `${lastDays} ${lastDays === 1 ? 'day' : 'days'} ago`}
             </Row>
@@ -285,45 +425,67 @@ export default function DealDetailDrawer({
             </Row>
             {deal.feeSEK !== 0 && (
               <Row label="Invoice">
-                <select
-                  aria-label="Invoice"
-                  value={deal.invoiceStatus ?? ''}
-                  onChange={(e) => onChange({ invoiceStatus: (e.target.value || null) as InvoiceStatus | null })}
-                  className={`${field} w-auto`}
-                >
-                  <option value="">—</option>
-                  {INVOICE_STATUSES.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-                {deal.invoiceDue && <span className="ml-2 text-gray-500">due {formatDate(deal.invoiceDue)}</span>}
-              </Row>
-            )}
-            {deal.rating !== null && (
-              <Row label="Rating">
-                <span className="flex items-center gap-0.5 text-amber-500" aria-label={`${deal.rating} out of 5`}>
-                  {Array.from({ length: 5 }, (_, i) => (
-                    <Star key={i} size={12} fill={i < deal.rating! ? 'currentColor' : 'none'} aria-hidden />
-                  ))}
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <select
+                    aria-label="Invoice"
+                    value={deal.invoiceStatus ?? ''}
+                    onChange={(e) => onChange({ invoiceStatus: (e.target.value || null) as InvoiceStatus | null })}
+                    className={`${field} w-auto`}
+                  >
+                    <option value="">—</option>
+                    {INVOICE_STATUSES.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-gray-400">due</span>
+                  <input
+                    type="date"
+                    aria-label="Invoice due"
+                    value={deal.invoiceDue ?? ''}
+                    onChange={(e) => onChange({ invoiceDue: e.target.value || null })}
+                    className={`${field} w-auto`}
+                  />
                 </span>
               </Row>
             )}
-            {links.length > 0 && (
-              <Row label="Links">
-                <span className="flex flex-wrap gap-2">
-                  {links.map(([label, href]) => (
-                    <a key={label} href={href} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-indigo-600 hover:underline">
-                      {label} <ExternalLink size={11} aria-hidden />
-                    </a>
-                  ))}
-                </span>
+            <Row label="Rating">
+              <span className="flex items-center gap-0.5 text-amber-500" role="group" aria-label="Rating">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    aria-label={`${n} out of 5`}
+                    aria-pressed={deal.rating === n}
+                    title={deal.rating === n ? 'Clear the rating' : undefined}
+                    // The current rating again clears it.
+                    onClick={() => onChange({ rating: deal.rating === n ? null : n })}
+                    className="rounded p-0.5 hover:bg-amber-50"
+                  >
+                    <Star size={13} fill={deal.rating !== null && n <= deal.rating ? 'currentColor' : 'none'} aria-hidden />
+                  </button>
+                ))}
+              </span>
+            </Row>
+            {LINKS.map(({ key, label }) => (
+              <Row key={key} label={label}>
+                <LinkField label={label} value={deal.links[key] ?? ''} onSave={(value) => onChange({ links: { [key]: value } })} />
               </Row>
-            )}
+            ))}
           </dl>
 
-          {deal.notes && <p className="mx-5 mt-4 rounded-lg bg-gray-50 p-3 text-xs text-gray-700">{deal.notes}</p>}
+          <label className="mx-5 mt-4 block text-xs font-semibold text-gray-700">
+            Notes
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={() => notes.trim() !== deal.notes && onChange({ notes: notes.trim() })}
+              rows={3}
+              placeholder="Anything worth knowing about this deal"
+              className="mt-1.5 w-full resize-y rounded-lg border border-gray-200 bg-gray-50 p-2.5 text-xs font-normal text-gray-700 placeholder-gray-400 focus:border-indigo-300 focus:bg-surface focus:outline-none"
+            />
+          </label>
 
           {otherDeals.length > 0 && (
             <section aria-label="Other deals" className="mx-5 mt-4">
@@ -361,7 +523,7 @@ export default function DealDetailDrawer({
               <button
                 type="submit"
                 disabled={!note.trim() || savingNote}
-                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"
+                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-40"
               >
                 {savingNote ? 'Saving…' : 'Save Note'}
               </button>
@@ -376,7 +538,7 @@ export default function DealDetailDrawer({
                 const source = sourceLabels[activity.source]
                 return (
                   <li key={activity.id} className="relative">
-                    <span className="absolute top-0 -left-[25px] flex h-[17px] w-[17px] items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500">
+                    <span className="absolute top-0 -left-[25px] flex h-[17px] w-[17px] items-center justify-center rounded-full border border-gray-200 bg-surface text-gray-500">
                       <Icon size={10} aria-hidden />
                     </span>
                     <div className="flex items-baseline justify-between gap-2">
@@ -410,6 +572,49 @@ export default function DealDetailDrawer({
         </div>
       </aside>
     </div>
+  )
+}
+
+const LINKS = [
+  { key: 'drive', label: 'Drive' },
+  { key: 'contract', label: 'Contract' },
+  { key: 'writeUp', label: 'Write-up' },
+] as const satisfies { key: keyof Deal['links']; label: string }[]
+
+// The semesters a deal can be moved to: last year's to two years ahead, newest first, and the deal's own.
+function semesterOptions(own: string, now = new Date()): string[] {
+  const year = now.getFullYear()
+  const options = [year + 2, year + 1, year, year - 1].flatMap((y) => [`HT ${y}`, `VT ${y}`])
+  if (!options.includes(own)) options.push(own)
+  if (!options.includes(currentSemester(now))) options.push(currentSemester(now))
+  return options.sort(compareSemesters)
+}
+
+// Only web addresses become links: anything else (a javascript: URL, say) is shown as text.
+const isWebAddress = (value: string) => /^https?:\/\/[^/\s]/i.test(value)
+
+// A link to a deal's folder or document: edited in place, saved when you leave the field, and opened from
+// the icon beside it.
+function LinkField({ label, value, onSave }: { label: string; value: string; onSave: (value: string) => void }) {
+  const [draft, setDraft] = useDraft(value)
+  return (
+    <span className="flex items-center gap-1.5">
+      <input
+        type="url"
+        aria-label={`${label} link`}
+        value={draft}
+        placeholder="https://…"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => draft.trim() !== value && onSave(draft.trim())}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+        className={field}
+      />
+      {isWebAddress(value) && (
+        <a href={value} target="_blank" rel="noreferrer" aria-label={`Open ${label}`} className="shrink-0 text-indigo-600 hover:text-indigo-800">
+          <ExternalLink size={13} aria-hidden />
+        </a>
+      )}
+    </span>
   )
 }
 

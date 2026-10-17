@@ -3,7 +3,7 @@ import { daysSince } from '../../data/deals'
 
 // Shared table look for the Companies and Contacts pages, matching the pipeline's list view.
 export const table =
-  'w-full min-w-[760px] border-separate border-spacing-0 overflow-hidden rounded-xl border border-gray-200 bg-white text-left text-xs'
+  'w-full min-w-[760px] border-separate border-spacing-0 overflow-hidden rounded-xl border border-gray-200 bg-surface text-left text-xs'
 export const headCell = 'border-b border-gray-200 px-3 py-2 font-semibold'
 export const cell = 'border-b border-gray-100 px-3 py-2.5 text-gray-700'
 
@@ -29,7 +29,7 @@ export function AddButton({ label, onClick, disabled, title }: { label: string; 
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+      className="flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-surface px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
     >
       <Plus size={14} aria-hidden /> {label}
     </button>

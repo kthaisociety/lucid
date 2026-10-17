@@ -53,7 +53,7 @@ export default function GmailBar({ outcome, ask, reconnect, onLater, onDismissOu
         <button type="button" onClick={onLater} className="text-indigo-700 hover:underline">
           Later
         </button>
-        <a href="/auth/gmail/connect" className="rounded-md bg-indigo-600 px-3 py-1 font-semibold text-white hover:bg-indigo-700">
+        <a href="/auth/gmail/connect" className="rounded-md bg-indigo-600 px-3 py-1 font-semibold text-white hover:bg-primary-hover">
           {reconnect ? 'Reconnect Gmail' : 'Connect Gmail'}
         </a>
       </span>

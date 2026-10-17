@@ -53,7 +53,7 @@ export default function TeamPage({ members, deals, meId, isAdmin, actions }: Pro
             <button
               type="button"
               onClick={() => setHandingOver(true)}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+              className="rounded-lg border border-gray-200 bg-surface px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
             >
               Hand over admin
             </button>
@@ -99,7 +99,7 @@ export default function TeamPage({ members, deals, meId, isAdmin, actions }: Pro
                       aria-label={`Role of ${member.name}`}
                       value={member.role ?? 'member'}
                       onChange={(e) => changeRole(member.id, e.target.value as Role)}
-                      className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs"
+                      className="rounded-md border border-gray-200 bg-surface px-2 py-1 text-xs"
                     >
                       {ROLES.map((r) => (
                         <option key={r.id} value={r.id}>

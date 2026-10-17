@@ -51,7 +51,7 @@ export default function FormDialog({ title, submitLabel, onSubmit, onClose, extr
 
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center p-4 pt-20">
-      <button type="button" aria-label={`Close ${title.toLowerCase()}`} tabIndex={-1} onClick={close} className="absolute inset-0 bg-gray-900/20" />
+      <button type="button" aria-label={`Close ${title.toLowerCase()}`} tabIndex={-1} onClick={close} className="absolute inset-0 bg-black/30" />
       <form
         ref={dialog}
         tabIndex={-1}
@@ -59,7 +59,7 @@ export default function FormDialog({ title, submitLabel, onSubmit, onClose, extr
         aria-modal="true"
         aria-label={title}
         onSubmit={submit}
-        className="relative max-h-[calc(100vh-6rem)] w-full max-w-sm overflow-y-auto rounded-xl border border-gray-200 bg-white p-5 shadow-xl focus:outline-none"
+        className="relative max-h-[calc(100vh-6rem)] w-full max-w-sm overflow-y-auto rounded-xl border border-gray-200 bg-surface p-5 shadow-xl focus:outline-none"
       >
         <div className="flex items-center justify-between">
           <h2 className="font-display text-sm font-bold text-gray-900">{title}</h2>
@@ -91,7 +91,7 @@ export default function FormDialog({ title, submitLabel, onSubmit, onClose, extr
                   type="button"
                   disabled={saving}
                   onClick={() => void run(onDelete)}
-                  className="rounded-md bg-red-600 px-2 py-1 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                  className="rounded-md bg-red-600 px-2 py-1 font-semibold text-white hover:bg-danger-hover disabled:opacity-50"
                 >
                   {saving ? 'Deleting…' : `Delete ${deleteWhat}`}
                 </button>
@@ -105,7 +105,7 @@ export default function FormDialog({ title, submitLabel, onSubmit, onClose, extr
           <button
             type="submit"
             disabled={saving}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
           >
             {saving ? 'Saving…' : submitLabel}
           </button>
@@ -132,7 +132,7 @@ export function DeleteButton({ what, onDelete }: { what: string; onDelete: () =>
         <button
           type="button"
           onClick={() => onDelete().catch((err: unknown) => setError(messageOf(err)))}
-          className="rounded-md bg-red-600 px-2 py-1 font-semibold text-white hover:bg-red-700"
+          className="rounded-md bg-red-600 px-2 py-1 font-semibold text-white hover:bg-danger-hover"
         >
           Delete {what}
         </button>

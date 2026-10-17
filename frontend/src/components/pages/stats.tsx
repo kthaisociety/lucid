@@ -4,7 +4,7 @@ import { statusColors } from '../statusColors'
 
 export function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
+    <div className="rounded-xl border border-gray-200 bg-surface p-4">
       <p className="text-[11px] font-medium text-gray-500">{label}</p>
       <p className="font-display mt-1 text-xl font-bold text-gray-900">{value}</p>
       {hint && <p className="mt-0.5 text-[11px] text-gray-400">{hint}</p>}
@@ -17,7 +17,7 @@ export function Tile({ label, value, hint }: { label: string; value: string; hin
 export function BarList({ title, bars, format = String }: { title: string; bars: Bar[]; format?: (n: number) => string }) {
   const max = Math.max(1, ...bars.map((b) => b.value))
   return (
-    <section aria-label={title} className="rounded-xl border border-gray-200 bg-white p-4">
+    <section aria-label={title} className="rounded-xl border border-gray-200 bg-surface p-4">
       <h3 className="text-xs font-semibold text-gray-700">{title}</h3>
       <ul className="mt-3 space-y-2">
         {bars.map((bar) => (
