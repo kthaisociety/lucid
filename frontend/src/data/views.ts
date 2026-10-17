@@ -148,3 +148,34 @@ export function reportFor(semester: string, all: Deal[], now = Date.now()): Seme
     needsFollowUp: deals.filter((d) => nudgeFor(d, now) !== null),
   }
 }
+
+export type MyStats = {
+  report: SemesterReport // of the semester's deals the member owns
+  supporting: Deal[] // the semester's open deals they support
+  waiting: Deal[] // their open deals with a nudge, the most pressing first
+  history: SemesterReport[] // each semester they owned a deal in, newest first
+}
+
+const nudgeOrder = ['overdue', 'your-turn', 'no-reply', 'inactive']
+
+// One member's numbers: what the Reports page shows for the team, for the deals they own.
+export function myStatsFor(memberId: string, semester: string, all: Deal[], now = Date.now()): MyStats {
+  const owned = all.filter((d) => d.owner?.id === memberId)
+  const report = reportFor(semester, owned, now)
+  const rank = (d: Deal) => {
+    const nudge = nudgeFor(d, now)!
+    return [nudgeOrder.indexOf(nudge.kind), -nudge.days] as const
+  }
+  const waiting = [...report.needsFollowUp].sort((a, b) => {
+    const [ka, da] = rank(a)
+    const [kb, db] = rank(b)
+    return ka - kb || da - db
+  })
+  const semesters = [...new Set(owned.map((d) => d.semester))].sort(compareSemesters)
+  return {
+    report,
+    supporting: all.filter((d) => d.semester === semester && isOpen(d) && d.support.some((p) => p.id === memberId)),
+    waiting,
+    history: semesters.map((s) => reportFor(s, owned, now)),
+  }
+}

@@ -34,6 +34,7 @@ type Member struct {
 	Email     string
 	Name      string
 	Role      string `gorm:"default:member"`
+	Title     string // on the business team, e.g. "Partnerships Lead"; not a permission
 	CreatedAt time.Time
 }
 
@@ -118,6 +119,7 @@ type MemberView struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 	Role  string `json:"role"`
+	Title string `json:"title"`
 	// Whether they've connected their Gmail (docs/adr/0006); left out where Gmail is off.
 	GmailConnected *bool `json:"gmailConnected,omitempty"`
 }
@@ -191,7 +193,7 @@ func viewOfContact(c Contact) ContactView {
 }
 
 func viewOfMember(m Member) MemberView {
-	return MemberView{ID: m.ID, Name: m.Name, Email: m.Email, Role: m.Role}
+	return MemberView{ID: m.ID, Name: m.Name, Email: m.Email, Role: m.Role, Title: m.Title}
 }
 
 func viewOfActivity(a Activity) ActivityView {

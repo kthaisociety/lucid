@@ -50,6 +50,9 @@ func NewRouter(d Deps) *gin.Engine {
 	}
 	signedIn := api.Group("", signIn)
 	signedIn.GET("/me", me(d.Deals, d.Sessions != nil, d.Gmail))
+	if d.Deals != nil {
+		signedIn.PATCH("/me", updateMe(d.Deals))
+	}
 	signedIn.GET("/deals", listDeals(d.Deals))
 	signedIn.POST("/deals", createDeal(d.Deals))
 	signedIn.GET("/deals/:id", getDeal(d.Deals))
@@ -110,7 +113,28 @@ func me(store *deals.Store, canSignOut bool, conns *gmail.Connections) gin.Handl
 				mailbox = "connected"
 			}
 		}
-		c.JSON(http.StatusOK, gin.H{"sub": user.Subject, "email": user.Email, "name": user.Name, "memberId": member.ID, "role": member.Role, "canSignOut": canSignOut, "gmail": mailbox})
+		c.JSON(http.StatusOK, gin.H{"sub": user.Subject, "email": user.Email, "name": user.Name, "memberId": member.ID, "role": member.Role, "title": member.Title, "canSignOut": canSignOut, "gmail": mailbox})
+	}
+}
+
+// updateMe changes the signed-in member's own profile: their title. It answers with them as a member.
+func updateMe(store *deals.Store) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		body, ok := readBody(c)
+		if !ok {
+			return
+		}
+		cols, err := deals.ParseProfilePatch(body)
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		member, err := store.UpdateProfile(c.Request.Context(), auth.Current(c), cols)
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, member)
 	}
 }
 

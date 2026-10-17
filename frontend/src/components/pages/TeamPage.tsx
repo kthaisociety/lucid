@@ -85,8 +85,11 @@ export default function TeamPage({ members, deals, meId, isAdmin, actions }: Pro
                 <td className={cell}>
                   <span className="flex items-center gap-2 font-semibold text-gray-900">
                     <OwnerAvatar owner={member} />
-                    {member.name}
-                    {member.id === meId && <span className="font-normal text-gray-400">(you)</span>}
+                    <span>
+                      {member.name}
+                      {member.id === meId && <span className="ml-1 font-normal text-gray-400">(you)</span>}
+                      {member.title && <span className="block text-[11px] font-normal text-gray-500">{member.title}</span>}
+                    </span>
                   </span>
                 </td>
                 <td className={`${cell} text-gray-500`}>{member.email}</td>
@@ -156,11 +159,12 @@ function AddMemberDialog({ onAdd, onClose }: { onAdd: (member: MemberInput) => P
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<Role>('member')
+  const [title, setTitle] = useState('')
   return (
     <FormDialog
       title="Add member"
       submitLabel="Add member"
-      onSubmit={() => onAdd({ name: name.trim(), email: email.trim(), role })}
+      onSubmit={() => onAdd({ name: name.trim(), email: email.trim(), role, title: title.trim() })}
       onClose={onClose}
     >
       <label className="block">
@@ -170,6 +174,16 @@ function AddMemberDialog({ onAdd, onClose }: { onAdd: (member: MemberInput) => P
       <label className="block">
         Email
         <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
+      </label>
+      <label className="block">
+        Title <span className="font-normal text-gray-400">(optional)</span>
+        <input
+          value={title}
+          maxLength={100}
+          placeholder="e.g. Partnerships Lead"
+          onChange={(e) => setTitle(e.target.value)}
+          className={inputClass}
+        />
       </label>
       <label className="block">
         Role

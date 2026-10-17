@@ -21,6 +21,7 @@ import {
   updateCompany,
   updateContact,
   updateDeal,
+  updateMe,
   ApiError,
   SIGNED_OUT,
   signOut,
@@ -36,6 +37,7 @@ import Header from './components/layout/Header'
 import Sidebar, { MobileNav } from './components/layout/Sidebar'
 import CompaniesPage, { type CompanyActions } from './components/pages/CompaniesPage'
 import ContactsPage, { type ContactActions } from './components/pages/ContactsPage'
+import MyPage from './components/pages/MyPage'
 import ReportsPage from './components/pages/ReportsPage'
 import SignInPage from './components/pages/SignInPage'
 import TeamPage, { type TeamActions } from './components/pages/TeamPage'
@@ -492,6 +494,29 @@ export default function App() {
                     <p className="m-6 text-sm text-gray-500">
                       {user ? 'Reports are for the board and admins.' : 'Loading…'}
                     </p>
+                  )
+                }
+              />
+              <Route
+                path="me"
+                element={
+                  user ? (
+                    <MyPage
+                      user={user}
+                      deals={all}
+                      semester={semester}
+                      onSelect={openDeal}
+                      onSaveTitle={async (title) => {
+                        await updateMe({ title })
+                        setUser(await fetchMe())
+                        // The team list and deals show the title too.
+                        await reload()
+                      }}
+                      onSignOut={() => void leave()}
+                      onDisconnectGmail={() => void disconnect()}
+                    />
+                  ) : (
+                    <p className="m-6 text-sm text-gray-500">Loading…</p>
                   )
                 }
               />

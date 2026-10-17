@@ -10,6 +10,8 @@ export type User = {
   // Who they are on the team (docs/adr/0003).
   memberId?: string
   role?: Role
+  // What they do on the team, in their own words ("Partnerships Lead"); not a permission.
+  title?: string
   // False for the dev user, who is always signed in (docs/pcr/0007).
   canSignOut?: boolean
   // Their mailbox (docs/adr/0006): off where Connect Gmail isn't set up; reconnect when Google no
@@ -60,6 +62,9 @@ export async function fetchMe(signal?: AbortSignal): Promise<User> {
 
 // Forgets your mailbox and withdraws the CRM's access to it (docs/adr/0006).
 export const disconnectGmail = () => call<void>('DELETE', '/api/gmail')
+
+// Changes your own profile: your title. Your role is an admin's to give.
+export const updateMe = (patch: { title: string }) => call<Person>('PATCH', '/api/me', patch)
 
 // Ends this browser's session (docs/adr/0004).
 export const signOut = () => call<void>('POST', '/auth/logout')
@@ -115,9 +120,9 @@ export const deleteContact = (id: string) => call<void>('DELETE', `/api/contacts
 export const fetchMembers = (signal?: AbortSignal) => call<Person[]>('GET', '/api/members', undefined, signal)
 
 // Admins only (the API answers 403 otherwise).
-export type MemberInput = { email: string; name: string; role: Role }
+export type MemberInput = { email: string; name: string; role: Role; title?: string }
 export const addMember = (member: MemberInput) => call<Person>('POST', '/api/members', member)
-export const updateMember = (id: string, patch: Partial<Pick<MemberInput, 'name' | 'role'>>) =>
+export const updateMember = (id: string, patch: Partial<Pick<MemberInput, 'name' | 'role' | 'title'>>) =>
   call<Person>('PATCH', `/api/members/${encodeURIComponent(id)}`, patch)
 export const removeMember = (id: string) => call<void>('DELETE', `/api/members/${encodeURIComponent(id)}`)
 // Makes the member an admin and you `stepDownTo` in one step (docs/adr/0005); answers with who you are now.
