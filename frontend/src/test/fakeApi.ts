@@ -41,6 +41,7 @@ type Body = Record<string, unknown>
 // With `signedIn`, the dev user signed in for real and can sign out (docs/adr/0004); without it, they're
 // the dev user, always signed in.
 // With `gmail`, Connect Gmail is on and the dev user's mailbox is in that state (docs/adr/0006).
+// With `fathom`, Connect Fathom is on and the dev user's Fathom is in that state (docs/adr/0008).
 export function stubApi(
   options: {
     me?: () => Promise<Response>
@@ -48,6 +49,7 @@ export function stubApi(
     firstSignIn?: boolean
     signedIn?: boolean
     gmail?: 'connected' | 'not-connected' | 'reconnect'
+    fathom?: 'connected' | 'not-connected'
   } = {},
 ): FakeApi {
   const role = options.role ?? 'admin'
@@ -92,9 +94,14 @@ export function stubApi(
 
   let signedOut = false
   let gmail = options.gmail ?? 'off'
+  let fathom = options.fathom ?? 'off'
   // Where Connect Gmail is on, the team list says who has connected.
   const withGmail = (members: Person[]) =>
-    gmail === 'off' ? members : members.map((m) => ({ ...m, gmailConnected: m.id === devMember.id && gmail === 'connected' }))
+    members.map((m) => ({
+      ...m,
+      ...(gmail === 'off' ? {} : { gmailConnected: m.id === devMember.id && gmail === 'connected' }),
+      ...(fathom === 'off' ? {} : { fathomConnected: m.id === devMember.id && fathom === 'connected' }),
+    }))
   const handle = async (method: string, path: string, body: Body): Promise<Response> => {
     const failure = api.failures.find((f) => f.method === method && f.path.test(path))
     if (failure?.once) api.failures.splice(api.failures.indexOf(failure), 1)
@@ -110,7 +117,7 @@ export function stubApi(
       const me = api.members.find((m) => m.id === devMember.id)!
       return options.me
         ? options.me()
-        : json({ ...devUser, memberId: me.id, role: me.role, title: me.title ?? '', canSignOut: !!options.signedIn, gmail })
+        : json({ ...devUser, memberId: me.id, role: me.role, title: me.title ?? '', canSignOut: !!options.signedIn, gmail, fathom })
     }
     if (method === 'PATCH' && path === '/api/me') {
       // Only the title: a role is an admin's to give, and the name comes from sign-in.
@@ -120,6 +127,10 @@ export function stubApi(
       return json(me)
     }
     if (method === 'GET' && path === '/api/members') return json(withGmail(api.members))
+    if (method === 'DELETE' && path === '/api/fathom') {
+      fathom = 'not-connected'
+      return new Response(null, { status: 204 })
+    }
     if (method === 'DELETE' && path === '/api/gmail') {
       gmail = 'not-connected'
       return new Response(null, { status: 204 })

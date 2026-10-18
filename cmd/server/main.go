@@ -75,9 +75,11 @@ func main() {
 		DevUser:  cfg.DevUser(),
 		Deals:    deals.NewStore(db),
 	}
-	if cfg.FathomWebhookSecret != "" {
-		deps.FathomKey, _ = fathom.Key(cfg.FathomWebhookSecret) // checked by Validate
-		log.Printf("taking Fathom meetings at /api/integrations/fathom (docs/adr/0006)")
+	if f := cfg.Fathom(); f != nil {
+		box, _ := secretbox.New(cfg.TokenEncryptionKey) // checked by Validate
+		deps.FathomOAuth = auth.NewOAuth(*f)
+		deps.Fathom = fathom.NewConnections(db, box, deps.FathomOAuth, cfg.PublicURL)
+		log.Printf("Connect Fathom is on; callback %s, webhooks at %s (docs/adr/0008)", f.RedirectURL, cfg.PublicURL+fathom.WebhookPath("…"))
 	}
 	if g := cfg.Gmail(); g != nil {
 		discoverCtx, cancel := context.WithTimeout(ctx, 15*time.Second)

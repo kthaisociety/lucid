@@ -13,6 +13,7 @@ import (
 
 	"github.com/kthaisociety/lucid/internal/auth"
 	"github.com/kthaisociety/lucid/internal/deals"
+	"github.com/kthaisociety/lucid/internal/fathom"
 	"github.com/kthaisociety/lucid/internal/gmail"
 )
 
@@ -27,8 +28,9 @@ type Deps struct {
 	Sessions *auth.Sessions
 	DevUser  *auth.User
 	Deals    *deals.Store
-	// FathomKey turns on /api/integrations/fathom (docs/adr/0006); nil leaves it off.
-	FathomKey []byte
+	// FathomOAuth and Fathom turn on Connect Fathom (docs/adr/0008), with real sign-in; nil leaves it off.
+	FathomOAuth *auth.OAuth
+	Fathom      *fathom.Connections
 	// GmailOIDC and Gmail turn on Connect Gmail (docs/adr/0006), with real sign-in; nil leaves it off.
 	GmailOIDC *auth.OIDC
 	Gmail     *gmail.Connections
@@ -49,7 +51,7 @@ func NewRouter(d Deps) *gin.Engine {
 		registerSignIn(r, d.OIDC, d.Sessions, d.Deals)
 	}
 	signedIn := api.Group("", signIn)
-	signedIn.GET("/me", me(d.Deals, d.Sessions != nil, d.Gmail))
+	signedIn.GET("/me", me(d.Deals, d.Sessions != nil, d.Gmail, d.Fathom))
 	if d.Deals != nil {
 		signedIn.PATCH("/me", updateMe(d.Deals))
 	}
@@ -59,13 +61,13 @@ func NewRouter(d Deps) *gin.Engine {
 	signedIn.PATCH("/deals/:id", updateDeal(d.Deals))
 	signedIn.POST("/deals/:id/notes", addNote(d.Deals))
 	registerCompanies(signedIn, d.Deals)
-	registerTeam(signedIn, d.Deals, d.Gmail)
+	registerTeam(signedIn, d.Deals, d.Gmail, d.Fathom)
 	if d.Gmail != nil && d.Sessions != nil {
 		registerGmail(r, signedIn, d.GmailOIDC, d.Sessions, d.Gmail, d.GmailSync)
 	}
 
-	if d.FathomKey != nil {
-		r.POST("/api/integrations/fathom", limitBody(maxWebhookBytes), fathomWebhook(d.FathomKey, d.Deals))
+	if d.Fathom != nil && d.Sessions != nil {
+		registerFathom(r, signedIn, d.FathomOAuth, d.Sessions, d.Fathom, d.Deals)
 	}
 
 	r.NoRoute(frontend(d.Frontend))
@@ -84,8 +86,9 @@ func health(pingDB func(ctx context.Context) error) gin.HandlerFunc {
 
 // me is the signed-in user and, with a store, who they are on the team; canSignOut is false for the dev
 // user, who is always signed in. gmail is "off", "connected", "not-connected" or "reconnect", when Google
-// no longer honours the grant (docs/adr/0006).
-func me(store *deals.Store, canSignOut bool, conns *gmail.Connections) gin.HandlerFunc {
+// no longer honours the grant (docs/adr/0006). fathom is "off", "connected" or "not-connected"
+// (docs/adr/0008).
+func me(store *deals.Store, canSignOut bool, conns *gmail.Connections, meetings *fathom.Connections) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user := auth.Current(c)
 		if store == nil {
@@ -113,7 +116,16 @@ func me(store *deals.Store, canSignOut bool, conns *gmail.Connections) gin.Handl
 				mailbox = "connected"
 			}
 		}
-		c.JSON(http.StatusOK, gin.H{"sub": user.Subject, "email": user.Email, "name": user.Name, "memberId": member.ID, "role": member.Role, "title": member.Title, "canSignOut": canSignOut, "gmail": mailbox})
+		recorder := "off"
+		if meetings != nil {
+			connected, err := meetings.Connected(c.Request.Context(), member.ID)
+			if err != nil {
+				fail(c, err)
+				return
+			}
+			recorder = map[bool]string{true: "connected", false: "not-connected"}[connected]
+		}
+		c.JSON(http.StatusOK, gin.H{"sub": user.Subject, "email": user.Email, "name": user.Name, "memberId": member.ID, "role": member.Role, "title": member.Title, "canSignOut": canSignOut, "gmail": mailbox, "fathom": recorder})
 	}
 }
 

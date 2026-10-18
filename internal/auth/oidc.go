@@ -54,9 +54,6 @@ func NewOIDC(ctx context.Context, cfg OIDCConfig) (*OIDC, error) {
 	if err != nil {
 		return nil, fmt.Errorf("oidc provider %s: %w", cfg.Issuer, err)
 	}
-	// The flow cookie's signing key, derived from the client secret so there's no other secret to set.
-	mac := hmac.New(sha256.New, []byte(cfg.ClientSecret))
-	mac.Write([]byte("lucid sign-in flow"))
 	return &OIDC{
 		cfg: cfg,
 		oauth: oauth2.Config{
@@ -67,7 +64,7 @@ func NewOIDC(ctx context.Context, cfg OIDCConfig) (*OIDC, error) {
 			Scopes:       append([]string{oidc.ScopeOpenID, "email", "profile"}, cfg.ExtraScopes...),
 		},
 		verifier: provider.Verifier(&oidc.Config{ClientID: cfg.ClientID}),
-		key:      mac.Sum(nil),
+		key:      flowKey(cfg.ClientSecret, "lucid sign-in flow"),
 		cookie:   cookieKindFor(cfg.RedirectURL),
 	}, nil
 }
@@ -116,9 +113,7 @@ func flowCookieName(state string) string {
 // loginHint, if any, is the email the provider suggests.
 func (o *OIDC) Begin(w http.ResponseWriter, loginHint string) string {
 	f := flow{State: randomString(), Nonce: randomString(), Verifier: oauth2.GenerateVerifier(), Expires: time.Now().Add(flowTTL).Unix()}
-	payload, _ := json.Marshal(f)
-	value := base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(o.sign(payload))
-	http.SetCookie(w, o.cookie.new(flowCookieName(f.State), value, flowTTL))
+	writeFlow(w, o.cookie, o.key, f)
 
 	opts := []oauth2.AuthCodeOption{oidc.Nonce(f.Nonce), oauth2.S256ChallengeOption(f.Verifier)}
 	if o.cfg.Google {
@@ -145,9 +140,7 @@ func (o *OIDC) Finish(w http.ResponseWriter, r *http.Request) (User, error) {
 // person actually granted.
 func (o *OIDC) FinishWithToken(w http.ResponseWriter, r *http.Request) (User, *oauth2.Token, error) {
 	q := r.URL.Query()
-	name := flowCookieName(q.Get("state"))
-	http.SetCookie(w, o.cookie.clear(name))
-	f, err := o.readFlow(r, name)
+	f, err := takeFlow(w, r, o.cookie, o.key)
 	if err != nil {
 		return User{}, nil, &SignInError{ReasonFailed, err}
 	}
@@ -155,9 +148,6 @@ func (o *OIDC) FinishWithToken(w http.ResponseWriter, r *http.Request) (User, *o
 	defer cancel()
 	if e := q.Get("error"); e != "" {
 		return User{}, nil, &SignInError{ReasonFailed, fmt.Errorf("provider: %s", e)}
-	}
-	if subtle.ConstantTimeCompare([]byte(q.Get("state")), []byte(f.State)) != 1 {
-		return User{}, nil, &SignInError{ReasonFailed, errors.New("state doesn't match")}
 	}
 
 	token, err := o.oauth.Exchange(ctx, q.Get("code"), oauth2.VerifierOption(f.Verifier))
@@ -198,16 +188,29 @@ func (o *OIDC) FinishWithToken(w http.ResponseWriter, r *http.Request) (User, *o
 	return User{Subject: idToken.Subject, Email: email, Name: claims.Name}, token, nil
 }
 
-func (o *OIDC) readFlow(r *http.Request, name string) (flow, error) {
+// writeFlow sets the cookie that carries a flow from Begin to the provider's redirect back, signed with
+// key so the browser can't change it.
+func writeFlow(w http.ResponseWriter, cookie cookieKind, key []byte, f flow) {
+	payload, _ := json.Marshal(f)
+	value := base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(sign(key, payload))
+	http.SetCookie(w, cookie.new(flowCookieName(f.State), value, flowTTL))
+}
+
+// takeFlow reads and clears the cookie of the flow the provider's redirect names in its state, and checks
+// it: signed with key, not expired, and for this very state.
+func takeFlow(w http.ResponseWriter, r *http.Request, cookie cookieKind, key []byte) (flow, error) {
+	state := r.URL.Query().Get("state")
+	name := flowCookieName(state)
+	http.SetCookie(w, cookie.clear(name))
 	var f flow
-	c, err := r.Cookie(o.cookie.name(name))
+	c, err := r.Cookie(cookie.name(name))
 	if err != nil {
 		return f, errors.New("no sign-in in progress in this browser")
 	}
 	payload64, sig64, ok := strings.Cut(c.Value, ".")
 	payload, err1 := base64.RawURLEncoding.DecodeString(payload64)
 	sig, err2 := base64.RawURLEncoding.DecodeString(sig64)
-	if !ok || err1 != nil || err2 != nil || !hmac.Equal(sig, o.sign(payload)) {
+	if !ok || err1 != nil || err2 != nil || !hmac.Equal(sig, sign(key, payload)) {
 		return f, errors.New("the sign-in cookie isn't ours")
 	}
 	if err := json.Unmarshal(payload, &f); err != nil {
@@ -216,12 +219,22 @@ func (o *OIDC) readFlow(r *http.Request, name string) (flow, error) {
 	if time.Now().Unix() > f.Expires {
 		return f, errors.New("the sign-in took too long")
 	}
+	if subtle.ConstantTimeCompare([]byte(state), []byte(f.State)) != 1 {
+		return f, errors.New("state doesn't match")
+	}
 	return f, nil
 }
 
-func (o *OIDC) sign(payload []byte) []byte {
-	mac := hmac.New(sha256.New, o.key)
+func sign(key, payload []byte) []byte {
+	mac := hmac.New(sha256.New, key)
 	mac.Write(payload)
+	return mac.Sum(nil)
+}
+
+// flowKey derives a flow cookie's signing key from a client secret, so there's no other secret to set.
+func flowKey(clientSecret, label string) []byte {
+	mac := hmac.New(sha256.New, []byte(clientSecret))
+	mac.Write([]byte(label))
 	return mac.Sum(nil)
 }
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/kthaisociety/lucid/internal/auth"
 	"github.com/kthaisociety/lucid/internal/deals"
+	"github.com/kthaisociety/lucid/internal/fathom"
 	"github.com/kthaisociety/lucid/internal/gmail"
 )
 
@@ -98,24 +99,52 @@ func adminOnly(store *deals.Store) gin.HandlerFunc {
 }
 
 // The team: everyone sees it; admins change it.
-func registerTeam(r *gin.RouterGroup, store *deals.Store, conns *gmail.Connections) {
+func registerTeam(r *gin.RouterGroup, store *deals.Store, mailboxes *gmail.Connections, meetings *fathom.Connections) {
 	r.GET("/members", list(func(ctx context.Context) ([]deals.MemberView, error) {
 		members, err := store.ListMembers(ctx)
-		if err != nil || conns == nil {
-			return members, err
+		if err != nil {
+			return nil, err
 		}
-		connected, err := conns.ConnectedMembers(ctx)
-		for i := range members {
-			c := connected[members[i].ID]
-			members[i].GmailConnected = &c
+		// Who has connected what, where it's on: nil where it's off.
+		for _, conns := range []struct {
+			connected func(context.Context) (map[string]bool, error)
+			set       func(m *deals.MemberView, connected bool)
+		}{
+			{gmailConnected(mailboxes), func(m *deals.MemberView, c bool) { m.GmailConnected = &c }},
+			{fathomConnected(meetings), func(m *deals.MemberView, c bool) { m.FathomConnected = &c }},
+		} {
+			if conns.connected == nil {
+				continue
+			}
+			connected, err := conns.connected(ctx)
+			if err != nil {
+				return nil, err
+			}
+			for i := range members {
+				conns.set(&members[i], connected[members[i].ID])
+			}
 		}
-		return members, err
+		return members, nil
 	}))
 	admin := r.Group("", adminOnly(store))
 	admin.POST("/members", create(store.AddMember))
 	admin.PATCH("/members/:id", patch(deals.ParseMemberPatch, store.UpdateMember))
 	admin.DELETE("/members/:id", remove(store.RemoveMember))
 	admin.POST("/members/:id/hand-over-admin", handOverAdmin(store))
+}
+
+func gmailConnected(c *gmail.Connections) func(context.Context) (map[string]bool, error) {
+	if c == nil {
+		return nil
+	}
+	return c.ConnectedMembers
+}
+
+func fathomConnected(c *fathom.Connections) func(context.Context) (map[string]bool, error) {
+	if c == nil {
+		return nil
+	}
+	return c.ConnectedMembers
 }
 
 // handOverAdmin makes the member an admin, and the signed-in admin `{stepDownTo}`: board or member

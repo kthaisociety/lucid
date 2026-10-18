@@ -25,6 +25,7 @@ import {
   ApiError,
   SIGNED_OUT,
   signOut,
+  disconnectFathom,
   disconnectGmail,
   type DealPatch,
   type NewLeadInput,
@@ -98,12 +99,15 @@ export default function App() {
   // How the last Connect Gmail ended, read once from ?gmail= and then taken off the address.
   const [gmailOutcome, setGmailOutcome] = useState(() => new URLSearchParams(window.location.search).get('gmail'))
   const [gmailLater, setGmailLater] = useState(false)
+  // And the last Connect Fathom, from ?fathom= on My page.
+  const [fathomOutcome, setFathomOutcome] = useState(() => new URLSearchParams(window.location.search).get('fathom'))
   useEffect(() => {
-    if (!gmailOutcome) return
+    if (!gmailOutcome && !fathomOutcome) return
     const url = new URL(window.location.href)
     url.searchParams.delete('gmail')
+    url.searchParams.delete('fathom')
     window.history.replaceState(null, '', url)
-  }, [gmailOutcome])
+  }, [gmailOutcome, fathomOutcome])
   const [data, setData] = useState<Data | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   // A save or refresh that failed, shown above the board; a failed refresh can be retried on its own.
@@ -406,6 +410,16 @@ export default function App() {
     }
   }
 
+  const disconnectMeetings = async () => {
+    try {
+      await disconnectFathom()
+      setUser(await fetchMe())
+      await reload()
+    } catch (err) {
+      setNotice({ message: `Couldn't disconnect Fathom: ${messageOf(err)}` })
+    }
+  }
+
   const leave = async () => {
     try {
       await signOut()
@@ -524,6 +538,9 @@ export default function App() {
                       }}
                       onSignOut={() => void leave()}
                       onDisconnectGmail={() => void disconnect()}
+                      fathomOutcome={fathomOutcome}
+                      onDismissFathomOutcome={() => setFathomOutcome(null)}
+                      onDisconnectFathom={() => void disconnectMeetings()}
                     />
                   ) : (
                     <p className="m-6 text-sm text-gray-500">Loading…</p>

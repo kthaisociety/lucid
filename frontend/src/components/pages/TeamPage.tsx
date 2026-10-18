@@ -31,6 +31,8 @@ export default function TeamPage({ members, deals, meId, isAdmin, actions }: Pro
 
   // Where Connect Gmail is on, who has connected (docs/adr/0006).
   const showGmail = members.some((m) => m.gmailConnected !== undefined)
+  // And Connect Fathom (docs/adr/0008).
+  const showFathom = members.some((m) => m.fathomConnected !== undefined)
 
   const changeRole = (id: string, role: Role) => {
     setError(null)
@@ -69,7 +71,7 @@ export default function TeamPage({ members, deals, meId, isAdmin, actions }: Pro
       <table className={table}>
         <thead className="bg-gray-50 text-[11px] text-gray-500">
           <tr>
-            {['Name', 'Email', 'Role', ...(showGmail ? ['Gmail'] : []), 'Open deals', 'All deals', ''].map((h, i) => (
+            {['Name', 'Email', 'Role', ...(showGmail ? ['Gmail'] : []), ...(showFathom ? ['Fathom'] : []), 'Open deals', 'All deals', ''].map((h, i) => (
               <th key={i} className={headCell}>
                 {h}
               </th>
@@ -114,6 +116,11 @@ export default function TeamPage({ members, deals, meId, isAdmin, actions }: Pro
                 {showGmail && (
                   <td className={`${cell} whitespace-nowrap`}>
                     {member.gmailConnected ? <span className="text-emerald-700">Connected</span> : <span className="text-gray-500">Not yet</span>}
+                  </td>
+                )}
+                {showFathom && (
+                  <td className={`${cell} whitespace-nowrap`}>
+                    {member.fathomConnected ? <span className="text-emerald-700">Connected</span> : <span className="text-gray-500">Not yet</span>}
                   </td>
                 )}
                 <td className={cell}>{owned.filter(isOpen).length || '—'}</td>

@@ -122,6 +122,8 @@ type MemberView struct {
 	Title string `json:"title"`
 	// Whether they've connected their Gmail (docs/adr/0006); left out where Gmail is off.
 	GmailConnected *bool `json:"gmailConnected,omitempty"`
+	// Whether they've connected their Fathom (docs/adr/0008); left out where Connect Fathom is off.
+	FathomConnected *bool `json:"fathomConnected,omitempty"`
 }
 
 type CompanyView struct {

@@ -35,9 +35,13 @@ type Config struct {
 	PublicURL        string
 	SignInDomain     string
 
-	// FathomWebhookSecret checks that meetings posted to /api/integrations/fathom come from the team's
-	// Fathom webhook (docs/adr/0006): `whsec_` and base64, as Fathom shows it. Unset, the route is off.
-	FathomWebhookSecret string
+	// Connect Fathom (docs/adr/0008): the app's OAuth client at Fathom, registered with
+	// PUBLIC_URL/auth/fathom/callback. Setting both turns it on; it needs real sign-in and
+	// TOKEN_ENCRYPTION_KEY, and an https PUBLIC_URL that Fathom's webhooks can reach. FATHOM_TOKEN_URL
+	// overrides where tokens come from, while it's unclear which of Fathom's two works.
+	FathomClientID     string
+	FathomClientSecret string
+	FathomTokenURL     string
 
 	// TokenEncryptionKey seals members' Gmail refresh tokens (docs/adr/0006): 32 random bytes in base64.
 	// Setting it turns on Connect Gmail, which needs real sign-in. The Gmail client defaults to the
@@ -61,7 +65,9 @@ func Load() *Config {
 		PublicURL:        strings.TrimRight(strings.TrimSpace(getEnv("PUBLIC_URL", "")), "/"),
 		SignInDomain:     strings.TrimSpace(getEnv("SIGN_IN_DOMAIN", "kthais.com")),
 
-		FathomWebhookSecret: strings.TrimSpace(getEnv("FATHOM_WEBHOOK_SECRET", "")),
+		FathomClientID:     strings.TrimSpace(getEnv("FATHOM_CLIENT_ID", "")),
+		FathomClientSecret: strings.TrimSpace(getEnv("FATHOM_CLIENT_SECRET", "")),
+		FathomTokenURL:     strings.TrimSpace(getEnv("FATHOM_TOKEN_URL", fathom.TokenURL)),
 
 		TokenEncryptionKey: strings.TrimSpace(getEnv("TOKEN_ENCRYPTION_KEY", "")),
 		GmailClientID:      strings.TrimSpace(getEnv("GMAIL_CLIENT_ID", "")),
@@ -95,6 +101,21 @@ func (c *Config) Gmail() *auth.OIDCConfig {
 }
 
 const googleIssuer = "https://accounts.google.com"
+
+// Fathom is Connect Fathom's OAuth client (docs/adr/0008), or nil when it's off.
+func (c *Config) Fathom() *auth.OAuthConfig {
+	if c.FathomClientID == "" && c.FathomClientSecret == "" {
+		return nil
+	}
+	return &auth.OAuthConfig{
+		AuthURL:      fathom.AuthorizeURL,
+		TokenURL:     c.FathomTokenURL,
+		ClientID:     c.FathomClientID,
+		ClientSecret: c.FathomClientSecret,
+		RedirectURL:  c.PublicURL + "/auth/fathom/callback",
+		Scopes:       []string{fathom.Scope},
+	}
+}
 
 // OIDC is the real sign-in's settings, or nil when no client is configured and the dev user (if any)
 // signs requests in instead.
@@ -147,9 +168,14 @@ func (c *Config) Validate() error {
 		slices.Sort(missing)
 		return fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
 	}
-	if c.FathomWebhookSecret != "" {
-		if _, err := fathom.Key(c.FathomWebhookSecret); err != nil {
-			return fmt.Errorf("FATHOM_WEBHOOK_SECRET: %w", err)
+	if c.Fathom() != nil {
+		switch {
+		case c.FathomClientID == "" || c.FathomClientSecret == "":
+			return fmt.Errorf("Connect Fathom needs both FATHOM_CLIENT_ID and FATHOM_CLIENT_SECRET")
+		case c.OIDC() == nil || c.TokenEncryptionKey == "":
+			return fmt.Errorf("Connect Fathom (FATHOM_CLIENT_ID) needs real sign-in and TOKEN_ENCRYPTION_KEY")
+		case !strings.HasPrefix(c.PublicURL, "https://"):
+			return fmt.Errorf("Connect Fathom needs an https PUBLIC_URL: Fathom only redirects to https, and posts meetings to it")
 		}
 	}
 	if c.TokenEncryptionKey != "" {

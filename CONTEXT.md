@@ -31,8 +31,9 @@ Words as this project uses them.
   owner yet; anyone can **claim** it (assign it to themselves) or assign it to someone else.
 - **Next step**: the one thing to do next on a deal, with an optional due date.
 - **Touchpoint**: an entry on a deal's timeline: an email, a meeting or a note. Email sync (each
-  member's connected Gmail) and Fathom meeting notes add touchpoints on their own
-  ([ADR 0006](docs/adr/0006-email-and-meeting-touchpoints.md)).
+  member's connected Gmail) and Fathom meeting notes (each member's connected Fathom) add touchpoints on
+  their own ([ADR 0006](docs/adr/0006-email-and-meeting-touchpoints.md),
+  [ADR 0008](docs/adr/0008-members-connect-their-own-fathom.md)).
 - **Follow-up nudge**: the one warning an open deal shows when it needs attention, the first that applies:
   its next step is overdue; the company's email has waited 2 days for our reply ("your turn"); our email
   has waited 5 days for theirs ("no reply"); or, with a note, meeting or nothing last, no touchpoint for
