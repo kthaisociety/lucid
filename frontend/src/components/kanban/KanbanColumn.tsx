@@ -1,5 +1,5 @@
 import { useState, type DragEvent } from 'react'
-import type { Deal, Status } from '../../data/deals'
+import { needsWrapUp, type Deal, type Status } from '../../data/deals'
 import { formatSEK } from '../../format'
 import { statusColors } from '../statusColors'
 import DealCard from './DealCard'
@@ -17,6 +17,11 @@ const carriesDeal = (e: DragEvent) => e.dataTransfer.types.includes(DEAL_DRAG_TY
 
 export default function KanbanColumn({ status, label, deals, onSelect, onMove }: Props) {
   const [over, setOver] = useState(false)
+  // Finished deals with nothing left to do (paid or free, and rated) fold away, so the column shows what
+  // still needs something; they're still in the list.
+  const [showDone, setShowDone] = useState(false)
+  const done = status === 'finished' ? deals.filter((deal) => !needsWrapUp(deal)) : []
+  const shown = showDone ? deals : deals.filter((deal) => !done.includes(deal))
   const total = deals.reduce((sum, deal) => sum + (deal.feeSEK ?? 0), 0)
 
   const onDragOver = (e: DragEvent) => {
@@ -59,9 +64,19 @@ export default function KanbanColumn({ status, label, deals, onSelect, onMove }:
         <span className="text-[11px] font-medium text-gray-500">{formatSEK(total)}</span>
       </header>
       <div className="flex min-h-16 flex-1 flex-col gap-2 overflow-y-auto">
-        {deals.map((deal) => (
+        {shown.map((deal) => (
           <DealCard key={deal.id} deal={deal} onSelect={onSelect} />
         ))}
+        {done.length > 0 && (
+          <button
+            type="button"
+            aria-expanded={showDone}
+            onClick={() => setShowDone((on) => !on)}
+            className="rounded-lg border border-dashed border-gray-300 py-2 text-[11px] font-semibold text-gray-500 hover:bg-surface hover:text-gray-800"
+          >
+            {showDone ? 'Hide done' : `${done.length} done: paid and rated`}
+          </button>
+        )}
         {deals.length === 0 && (
           <p
             className={`rounded-lg border border-dashed py-6 text-center text-[11px] ${
