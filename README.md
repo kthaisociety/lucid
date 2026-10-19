@@ -83,23 +83,20 @@ addresses never count as contacts. If Google withdraws access, the member is ask
 Locally, connect only your own mailbox and use your own addresses as contacts
 ([PCR 0007](docs/pcr/0007-real-sign-in-dev-user-for-local-work.md)).
 
-## Fathom meetings
+## Connect Fathom
 
-Finished Fathom meetings with a contact among the invitees land on the timeline of that company's open
-deals (or its latest deal), with Fathom's summary, action items and a link to the recording
-([ADR 0006](docs/adr/0006-email-and-meeting-touchpoints.md)). Meetings with no contact are dropped.
+Members who record meetings with Fathom connect their own Fathom on My page
+([ADR 0008](docs/adr/0008-members-connect-their-own-fathom.md)). Lucid then makes a webhook at Fathom
+for their recordings, so finished meetings with a contact among the invitees land on the timeline of
+that company's open deals (or its latest deal), with Fathom's summary, action items and a link to the
+recording. Meetings with no contact are dropped. Disconnecting deletes the webhook.
 
-To connect it, one person on the team's Fathom workspace adds a webhook (Settings, API Access, Add
-Webhook):
-
-- Destination URL: `PUBLIC_URL/api/integrations/fathom`
-- Triggered for: their own recordings and **shared team recordings**, so the whole team's meetings come
-  through one webhook. Meetings must be shared with the team in Fathom to be seen.
-- Include: summary and action items (no transcript)
-
-Then set `FATHOM_WEBHOOK_SECRET` to the secret Fathom shows. Fathom can't reach a laptop, so locally
-this is tried with test meetings through a tunnel, never real meetings with companies
-([PCR 0007](docs/pcr/0007-real-sign-in-dev-user-for-local-work.md)).
+It needs Fathom's OAuth app, which Platform registers on Fathom with `PUBLIC_URL/auth/fathom/callback`
+as its redirect URL, then `FATHOM_CLIENT_ID` and `FATHOM_CLIENT_SECRET`. Fathom only redirects to https
+and must reach the webhooks, so `PUBLIC_URL` is https: locally, a tunnel such as an ngrok domain
+registered with the app as a development redirect URL. Run the server with real sign-in then, never
+`DEV_USER_EMAIL`, which would let anyone reaching the tunnel in as an admin. Locally, use test meetings
+only, never real meetings with companies ([PCR 0007](docs/pcr/0007-real-sign-in-dev-user-for-local-work.md)).
 
 ## Database
 
@@ -116,12 +113,15 @@ The schema is SQL files in `internal/database/migrations/`, applied by the serve
 | `POST /auth/logout` | signs this browser out: 204 |
 | `GET /auth/gmail/connect` | starts connecting the signed-in member's own Gmail; back to `/?gmail=connected`, `wrong-account`, `no-access` or `failed` |
 | `GET`, `DELETE /api/gmail` | your mailbox's connection: `{connected, email, connectedAt, syncedAt, syncError}`; DELETE disconnects and revokes it |
-| `POST /api/integrations/fathom` | Fathom's webhook: a finished meeting, signed with `FATHOM_WEBHOOK_SECRET` (401 otherwise); 204. Off without the secret |
-| `GET /api/me` | the signed-in user and who they are on the team: `{sub, email, name, memberId, role, canSignOut}`; 401 if no one is signed in |
+| `GET /auth/fathom/connect` | starts connecting the signed-in member's own Fathom; back to `/me?fathom=connected`, `no-access` or `failed` |
+| `DELETE /api/fathom` | disconnects your Fathom and deletes its webhook: 204 |
+| `POST /api/integrations/fathom/:hook` | a member's Fathom webhook: a finished meeting, signed with that webhook's secret (401 otherwise, 404 for an unknown hook); 204 |
+| `GET /api/me` | the signed-in user and who they are on the team: `{sub, email, name, memberId, role, title, canSignOut, gmail, fathom}`; 401 if no one is signed in |
+| `PATCH /api/me` | changes your own `{title}` |
 | `GET /api/deals` | every deal, with company, contact, owner, support and timeline |
 | `GET /api/deals/:id` | one deal, the same way |
 | `POST /api/deals` | adds a lead owned by `{ownerId}`, or by no one when it's null: `{companyId}` or a new `{company}` name, optionally `{contactId}` or a new `{contact: {name, email, role}}`, and `{dealType, semester, nextStep}` |
-| `PATCH /api/deals/:id` | changes `status`, `nextStep`, `nextStepDue`, `feeSEK`, `invoiceStatus`, `contactId` or `ownerId`; `null` clears a nullable one |
+| `PATCH /api/deals/:id` | changes any of the deal's fields, `companyId`, `contactId`, `ownerId`, `supportIds` and `links: {drive, contract, writeUp}` among them; `null` clears a nullable one |
 | `POST /api/deals/:id/notes` | adds a quick note to the deal's timeline: `{body}` |
 | `GET`, `POST /api/companies`; `PATCH`, `DELETE /api/companies/:id` | companies: `{name, website, notes}`; names are unique ignoring case |
 | `GET`, `POST /api/contacts`; `PATCH`, `DELETE /api/contacts/:id` | contacts: `{companyId, name, email, role}`; emails are unique |
@@ -143,9 +143,10 @@ All from env, read by the Go server ([PCR 0001](docs/pcr/0001-config-from-env.md
 | `OIDC_ISSUER` | no | default `https://accounts.google.com`; identity-service's URL once it's live |
 | `PUBLIC_URL` | no | where the app is served; the callback is `PUBLIC_URL/auth/callback`. https, except on 127.0.0.1 or localhost |
 | `SIGN_IN_DOMAIN` | no | the email domain that may sign in, default `kthais.com` |
-| `TOKEN_ENCRYPTION_KEY` | yes | 32 random bytes in base64; seals Gmail refresh tokens and turns on Connect Gmail ([ADR 0006](docs/adr/0006-email-and-meeting-touchpoints.md)) |
+| `TOKEN_ENCRYPTION_KEY` | yes | 32 random bytes in base64; seals Gmail and Fathom tokens and turns on Connect Gmail ([ADR 0006](docs/adr/0006-email-and-meeting-touchpoints.md)) |
 | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` | the secret | Connect Gmail's Google client; default to the sign-in client while that's Google's |
-| `FATHOM_WEBHOOK_SECRET` | yes | the team's Fathom webhook secret, `whsec_…`; turns on `/api/integrations/fathom` ([ADR 0006](docs/adr/0006-email-and-meeting-touchpoints.md)) |
+| `FATHOM_CLIENT_ID`, `FATHOM_CLIENT_SECRET` | the secret | Fathom's OAuth app; setting them turns on Connect Fathom, which needs real sign-in, `TOKEN_ENCRYPTION_KEY` and an https `PUBLIC_URL` ([ADR 0008](docs/adr/0008-members-connect-their-own-fathom.md)) |
+| `FATHOM_TOKEN_URL` | no | where Fathom tokens come from, default `https://api.fathom.ai/external/v1/oauth2/token` |
 | `DEV_USER_EMAIL` | no | without an OIDC client, signs every request in as this user; local work only ([PCR 0007](docs/pcr/0007-real-sign-in-dev-user-for-local-work.md)) |
 | `HOST`, `PORT` | no | default all interfaces, `8000` |
 
@@ -158,11 +159,11 @@ share one version.
 
 | Environment | URL | Data |
 |---|---|---|
-| Live | `https://lucid.kthais.com` | the team's real deals; members connect Gmail; the team's Fathom webhook |
+| Live | `https://lucid.kthais.com` | the team's real deals; members connect Gmail and Fathom |
 | Staging | `https://lucid-stg.kthais.com` | made-up only: the seed (`./lucid-seed`, once), test meetings, testers' own mail |
 
 Each has its own Google OAuth client (callbacks `/auth/callback` and `/auth/gmail/callback` on its own
-URL), `TOKEN_ENCRYPTION_KEY`, Fathom secret and first admin (`./lucid appoint-admin`, also on
+URL), Fathom OAuth app (callback `/auth/fathom/callback`), `TOKEN_ENCRYPTION_KEY` and first admin (`./lucid appoint-admin`, also on
 staging: the seed makes no one an admin there, so the order doesn't matter)
 ([ADR 0007](docs/adr/0007-staging-holds-made-up-data.md)).
 

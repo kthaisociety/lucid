@@ -1532,3 +1532,46 @@ test('going back to the saved title while another save is under way saves it too
   await waitFor(() => expect(api.members.find((m) => m.id === 'm-dev')?.title).toBe('Partnerships Lead'))
   await waitFor(() => expect(title).toHaveValue('Partnerships Lead'))
 })
+
+test('My page connects and disconnects Fathom', async () => {
+  api = stubApi({ signedIn: true, fathom: 'connected' })
+  renderAt('/me')
+  const profile = await screen.findByRole('region', { name: 'Profile' })
+  expect(profile).toHaveTextContent('Fathom connected')
+
+  fireEvent.click(within(profile).getByRole('button', { name: 'Disconnect Fathom' }))
+
+  const connect = await within(profile).findByRole('link', { name: 'Connect Fathom' })
+  expect(connect).toHaveAttribute('href', '/auth/fathom/connect')
+  expect(api.requests.some((r) => r.method === 'DELETE' && r.path === '/api/fathom')).toBe(true)
+})
+
+test('My page says how connecting Fathom went, once', async () => {
+  window.history.replaceState(null, '', '/me?fathom=no-access')
+  api = stubApi({ signedIn: true, fathom: 'not-connected' })
+  renderAt('/me')
+
+  const status = await screen.findByText(/Fathom wasn’t connected/)
+  expect(window.location.search).toBe('')
+  fireEvent.click(within(status).getByRole('button', { name: 'Dismiss' }))
+  expect(screen.queryByText(/Fathom wasn’t connected/)).not.toBeInTheDocument()
+  window.history.replaceState(null, '', '/')
+})
+
+test('without Connect Fathom, My page and Team say nothing of it', async () => {
+  renderAt('/me')
+  expect(await screen.findByRole('region', { name: 'Profile' })).not.toHaveTextContent('Fathom')
+  goTo('Team')
+  expect(await screen.findByRole('table')).not.toHaveTextContent('Fathom')
+})
+
+test('Team shows who has connected Fathom', async () => {
+  api = stubApi({ fathom: 'connected' })
+  renderAt('/team')
+
+  const table = await screen.findByRole('table')
+  expect(within(table).getByRole('columnheader', { name: 'Fathom' })).toBeInTheDocument()
+  const me = within(table).getByText('(you)').closest('tr')!
+  expect(me).toHaveTextContent('Connected')
+  expect(within(table).getByText('Iris Wallin').closest('tr')).toHaveTextContent('Not yet')
+})

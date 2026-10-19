@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { LogOut, Mail } from 'lucide-react'
+import { LogOut, Mail, Video, X } from 'lucide-react'
 import type { User } from '../../api'
 import { ROLES, nudgeFor, statusLabel, type Deal } from '../../data/deals'
 import { myStatsFor } from '../../data/views'
@@ -17,6 +17,10 @@ type Props = {
   onSaveTitle: (title: string) => Promise<void>
   onSignOut: () => void
   onDisconnectGmail: () => void
+  // How the last Connect Fathom ended (?fathom=), if it just did.
+  fathomOutcome: string | null
+  onDismissFathomOutcome: () => void
+  onDisconnectFathom: () => void
 }
 
 // Your title on the team, in your own words: saved when you leave the field. Only a description: what
@@ -109,6 +113,55 @@ function GmailStatus({ gmail, onDisconnect }: { gmail: User['gmail']; onDisconne
   )
 }
 
+// Where the member's Fathom stands (docs/adr/0008). Only members who record meetings need it, so nothing
+// asks them to connect but this.
+function FathomStatus({ fathom, onDisconnect }: { fathom: User['fathom']; onDisconnect: () => void }) {
+  const action = 'rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold hover:bg-gray-50'
+  return (
+    <p className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+      <Video size={14} aria-hidden />
+      {fathom === 'connected' ? (
+        <>
+          Fathom connected: your recorded meetings with contacts land on their deals.
+          <button type="button" onClick={onDisconnect} className={`${action} text-gray-700 hover:text-red-600`}>
+            Disconnect Fathom
+          </button>
+        </>
+      ) : (
+        <>
+          Record meetings with Fathom? Connect it, and meetings with contacts land on their deals.
+          <a href="/auth/fathom/connect" className={`${action} text-indigo-700`}>
+            Connect Fathom
+          </a>
+        </>
+      )}
+    </p>
+  )
+}
+
+const fathomOutcomes: Record<string, { ok: boolean; message: string }> = {
+  connected: { ok: true, message: 'Fathom connected. Your next meetings with contacts will show on their deals.' },
+  'no-access': { ok: false, message: 'Fathom wasn’t connected: allow Lucid on Fathom’s screen.' },
+  failed: { ok: false, message: 'Connecting Fathom didn’t work. Try again.' },
+}
+
+function FathomOutcome({ outcome, onDismiss }: { outcome: string; onDismiss: () => void }) {
+  const result = fathomOutcomes[outcome] ?? fathomOutcomes.failed
+  return (
+    <p
+      role="status"
+      className={`flex basis-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs ${
+        result.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'
+      }`}
+    >
+      {result.message}
+      <button type="button" aria-label="Dismiss" onClick={onDismiss} className="opacity-70 hover:opacity-100">
+        <X size={14} aria-hidden />
+      </button>
+    </p>
+  )
+}
+
 function DealLink({ deal, onSelect }: { deal: Deal; onSelect: (id: string) => void }) {
   return (
     <button type="button" onClick={() => onSelect(deal.id)} className="text-xs font-semibold text-indigo-700 hover:underline">
@@ -118,7 +171,18 @@ function DealLink({ deal, onSelect }: { deal: Deal; onSelect: (id: string) => vo
 }
 
 // The signed-in member's own page: who they are, their mailbox, and how their deals are going.
-export default function MyPage({ user, deals, semester, onSelect, onSaveTitle, onSignOut, onDisconnectGmail }: Props) {
+export default function MyPage({
+  user,
+  deals,
+  semester,
+  onSelect,
+  onSaveTitle,
+  onSignOut,
+  onDisconnectGmail,
+  fathomOutcome,
+  onDismissFathomOutcome,
+  onDisconnectFathom,
+}: Props) {
   const role = ROLES.find((r) => r.id === user.role)?.label
   const stats = user.memberId ? myStatsFor(user.memberId, semester, deals) : null
 
@@ -148,6 +212,12 @@ export default function MyPage({ user, deals, semester, onSelect, onSaveTitle, o
             <GmailStatus gmail={user.gmail} onDisconnect={onDisconnectGmail} />
           </div>
         )}
+        {user.fathom && user.fathom !== 'off' && (
+          <div className="basis-full">
+            <FathomStatus fathom={user.fathom} onDisconnect={onDisconnectFathom} />
+          </div>
+        )}
+        {fathomOutcome && <FathomOutcome outcome={fathomOutcome} onDismiss={onDismissFathomOutcome} />}
       </section>
 
       {!stats ? (

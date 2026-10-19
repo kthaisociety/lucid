@@ -17,6 +17,8 @@ export type User = {
   // Their mailbox (docs/adr/0006): off where Connect Gmail isn't set up; reconnect when Google no
   // longer honours the grant.
   gmail?: 'off' | 'connected' | 'not-connected' | 'reconnect'
+  // Their Fathom (docs/adr/0008): off where Connect Fathom isn't set up.
+  fathom?: 'off' | 'connected' | 'not-connected'
 }
 
 // Fired when the server answers 401: the session ended, so the app shows the sign-in page.
@@ -62,6 +64,9 @@ export async function fetchMe(signal?: AbortSignal): Promise<User> {
 
 // Forgets your mailbox and withdraws the CRM's access to it (docs/adr/0006).
 export const disconnectGmail = () => call<void>('DELETE', '/api/gmail')
+
+// Forgets your Fathom and deletes the webhook that brought your meetings in (docs/adr/0008).
+export const disconnectFathom = () => call<void>('DELETE', '/api/fathom')
 
 // Changes your own profile: your title. Your role is an admin's to give.
 export const updateMe = (patch: { title: string }) => call<Person>('PATCH', '/api/me', patch)

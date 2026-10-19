@@ -81,13 +81,56 @@ func TestOIDCNeedsHTTPSExceptOnThisMachine(t *testing.T) {
 	assert.NoError(t, Load().Validate())
 }
 
-func TestAFathomSecretMustBeFathoms(t *testing.T) {
+func TestFathomIsOffWithoutAClient(t *testing.T) {
 	setRequired(t)
-	t.Setenv("FATHOM_WEBHOOK_SECRET", "not-a-secret")
-	assert.ErrorContains(t, Load().Validate(), "FATHOM_WEBHOOK_SECRET")
+	setOIDC(t)
 
-	t.Setenv("FATHOM_WEBHOOK_SECRET", "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw")
+	assert.Nil(t, Load().Fathom())
 	assert.NoError(t, Load().Validate())
+}
+
+func TestFathomFromEnv(t *testing.T) {
+	setRequired(t)
+	setOIDC(t)
+	t.Setenv("TOKEN_ENCRYPTION_KEY", testTokenKey)
+	t.Setenv("FATHOM_CLIENT_ID", " fathom-client ")
+	t.Setenv("FATHOM_CLIENT_SECRET", "fathom-secret")
+
+	cfg := Load()
+	require.NoError(t, cfg.Validate())
+	f := cfg.Fathom()
+	require.NotNil(t, f)
+	assert.Equal(t, "fathom-client", f.ClientID)
+	assert.Equal(t, "https://crm.example.com/auth/fathom/callback", f.RedirectURL)
+	assert.Equal(t, "https://api.fathom.ai/external/v1/oauth2/token", f.TokenURL)
+	assert.Equal(t, []string{"public_api"}, f.Scopes)
+
+	t.Setenv("FATHOM_TOKEN_URL", "https://fathom.video/external/v1/oauth2/token")
+	assert.Equal(t, "https://fathom.video/external/v1/oauth2/token", Load().Fathom().TokenURL)
+}
+
+func TestFathomNeedsItsWholeClientRealSignInAKeyAndHTTPS(t *testing.T) {
+	setRequired(t)
+	setOIDC(t)
+	t.Setenv("TOKEN_ENCRYPTION_KEY", testTokenKey)
+	t.Setenv("FATHOM_CLIENT_ID", "fathom-client")
+	assert.ErrorContains(t, Load().Validate(), "both FATHOM_CLIENT_ID and FATHOM_CLIENT_SECRET")
+
+	t.Setenv("FATHOM_CLIENT_SECRET", "fathom-secret")
+	t.Setenv("TOKEN_ENCRYPTION_KEY", "")
+	assert.ErrorContains(t, Load().Validate(), "needs real sign-in and TOKEN_ENCRYPTION_KEY")
+
+	t.Setenv("TOKEN_ENCRYPTION_KEY", testTokenKey)
+	t.Setenv("PUBLIC_URL", "http://127.0.0.1:8002")
+	assert.ErrorContains(t, Load().Validate(), "https PUBLIC_URL", "Fathom can't redirect to or post to a laptop's http")
+
+	t.Setenv("PUBLIC_URL", "https://example.ngrok-free.dev")
+	assert.NoError(t, Load().Validate())
+
+	t.Setenv("OIDC_CLIENT_ID", "")
+	t.Setenv("OIDC_CLIENT_SECRET", "")
+	t.Setenv("DEV_USER_EMAIL", "dev@kthais.com")
+	assert.ErrorContains(t, Load().Validate(), "needs real sign-in", "never the dev user behind a tunnel")
 }
 
 const testTokenKey = "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
