@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { fixtureDeals } from '../test/fixtures'
-import { calendarDaysBetween, compareSemesters, currentSemester, isUnpaid, nudgeFor, type Deal } from './deals'
+import { byAttention, calendarDaysBetween, compareSemesters, currentSemester, isUnpaid, needsWrapUp, nudgeFor, type Deal } from './deals'
 
 const now = new Date('2026-10-13T12:00:00').getTime()
 const deal = (patch: Partial<Deal>): Deal => ({
@@ -108,4 +108,67 @@ test('without a contact, the nudge says "they"', () => {
     days: 3,
     who: null,
   })
+})
+
+test('deals needing attention come first: nudges by how pressing, then the nearest next step, then the newest', () => {
+  const at = (timestamp: string) => [{ id: 'a', type: 'note' as const, source: 'manual' as const, title: '', body: '', timestamp }]
+  const email = (direction: 'sent' | 'received', timestamp: string) => [
+    { id: 'e', type: 'email' as const, source: 'email_sync' as const, title: '', body: '', timestamp, direction },
+  ]
+  const deals = [
+    deal({ id: 'none-old', createdAt: '2026-09-01T00:00:00Z' }),
+    deal({ id: 'due-later', nextStepDue: '2026-10-30' }),
+    deal({ id: 'quiet', activities: at('2026-10-01T12:00:00') }),
+    deal({ id: 'none-new', createdAt: '2026-10-01T00:00:00Z' }),
+    deal({ id: 'late-1', nextStepDue: '2026-10-12' }),
+    deal({ id: 'turn', activities: email('received', '2026-10-10T12:00:00') }),
+    deal({ id: 'due-soon', nextStepDue: '2026-10-15' }),
+    deal({ id: 'late-5', nextStepDue: '2026-10-08' }),
+    deal({ id: 'no-reply', activities: email('sent', '2026-10-06T12:00:00') }),
+  ]
+
+  expect(deals.sort(byAttention(now)).map((d) => d.id)).toEqual([
+    'late-5',
+    'late-1',
+    'turn',
+    'no-reply',
+    'quiet',
+    'due-soon',
+    'due-later',
+    'none-new',
+    'none-old',
+  ])
+})
+
+test('finished deals with something left come first, then the latest', () => {
+  const finished = (patch: Partial<Deal>) =>
+    deal({ status: 'finished', feeSEK: 10_000, invoiceStatus: 'paid', rating: 4, ...patch })
+  const deals = [
+    finished({ id: 'done-old', endDate: '2026-09-01' }),
+    finished({ id: 'unrated', rating: null, endDate: '2026-08-01' }),
+    finished({ id: 'done-new', startDate: '2026-10-01', endDate: null }),
+    finished({ id: 'unpaid', invoiceStatus: 'waiting', endDate: '2026-07-01' }),
+  ]
+
+  expect(deals.map(needsWrapUp)).toEqual([false, true, false, true])
+  expect(deals.sort(byAttention(now)).map((d) => d.id)).toEqual(['unrated', 'unpaid', 'done-new', 'done-old'])
+  expect(needsWrapUp(finished({ feeSEK: 0, invoiceStatus: null }))).toBe(false) // free and rated
+})
+
+test('two nudges alike: the nearer next step first, not the newer deal', () => {
+  const quiet = [{ id: 'a', type: 'note' as const, source: 'manual' as const, title: '', body: '', timestamp: '2026-10-01T12:00:00' }]
+  const undatedNewer = deal({ id: 'undated', activities: quiet, createdAt: '2026-10-05T00:00:00Z' })
+  const dueToday = deal({ id: 'due-today', activities: quiet, nextStepDue: '2026-10-13', createdAt: '2026-09-01T00:00:00Z' })
+
+  expect([undatedNewer, dueToday].sort(byAttention(now)).map((d) => d.id)).toEqual(['due-today', 'undated'])
+})
+
+test('sorting open, finished and canceled deals together keeps each kind in its order', () => {
+  const lead = (id: string, nextStepDue: string) => deal({ id, status: 'lead', nextStepDue })
+  const unrated = deal({ id: 'finished', status: 'finished', rating: null, startDate: null, endDate: null })
+  const canceled = deal({ id: 'canceled', status: 'canceled' })
+
+  const sorted = [lead('late-3', '2026-10-10'), unrated, canceled, lead('late-5', '2026-10-08')].sort(byAttention(now))
+
+  expect(sorted.map((d) => d.id)).toEqual(['late-5', 'late-3', 'finished', 'canceled'])
 })

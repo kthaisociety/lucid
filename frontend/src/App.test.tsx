@@ -1595,7 +1595,9 @@ test('an empty semester offers the newest one with deals', async () => {
   expect(empty).toHaveTextContent(`No deals in ${thisSemester} yet`)
   fireEvent.click(within(empty).getByRole('button', { name: `Go to ${lastSemester}` }))
 
-  expect(await screen.findByText('Granit Consulting')).toBeInTheDocument()
+  // Granit is finished, paid and rated there: folded under "done" until opened.
+  fireEvent.click(await within(column('Finished')).findByRole('button', { name: /done: paid and rated/ }))
+  expect(within(column('Finished')).getByText('Granit Consulting')).toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'No deals' })).not.toBeInTheDocument()
 })
 
@@ -1612,4 +1614,35 @@ test('My page says so when you own no deals this semester', async () => {
 
   const byStatus = await screen.findByRole('region', { name: 'Your deals by status' })
   expect(byStatus).toHaveTextContent(`You own no deals in ${thisSemester}`)
+})
+
+test('finished deals that are paid and rated fold away, and open on request', async () => {
+  await renderApp()
+  const finished = column('Finished')
+  expect(within(finished).queryByText('Codewise')).not.toBeInTheDocument() // free and rated
+
+  fireEvent.click(within(finished).getByRole('button', { name: '1 done: paid and rated' }))
+  expect(within(finished).getByText('Codewise')).toBeInTheDocument()
+
+  fireEvent.click(within(finished).getByRole('button', { name: 'Hide done' }))
+  expect(within(finished).queryByText('Codewise')).not.toBeInTheDocument()
+})
+
+test('a finished deal still to be rated stays in view', async () => {
+  for (const deal of api.deals) if (deal.company === 'Codewise') deal.rating = null
+  await renderApp()
+
+  expect(within(column('Finished')).getByText('Codewise')).toBeInTheDocument()
+  expect(within(column('Finished')).queryByRole('button', { name: /done/ })).not.toBeInTheDocument()
+})
+
+test('the board puts what needs attention first in each column', async () => {
+  api.deals.reverse() // whatever order the API sends them in
+  await renderApp()
+  const lead = within(column('Lead'))
+    .getAllByRole('button')
+    .map((b) => b.textContent ?? '')
+  // Stadsnät Labs and Lumen Health need a follow-up; Vinga Voice's next step is due today.
+  expect(lead.findIndex((t) => t.includes('Stadsnät Labs'))).toBeLessThan(lead.findIndex((t) => t.includes('Vinga Voice')))
+  expect(lead.findIndex((t) => t.includes('Lumen Health'))).toBeLessThan(lead.findIndex((t) => t.includes('Vinga Voice')))
 })

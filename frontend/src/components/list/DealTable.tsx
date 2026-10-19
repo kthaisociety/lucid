@@ -1,4 +1,4 @@
-import { STATUSES, nudgeFor, statusLabel, type Deal } from '../../data/deals'
+import { STATUSES, byAttention, nudgeFor, statusLabel, type Deal } from '../../data/deals'
 import { formatDate, formatDateRange } from '../../format'
 import { DealTypeBadge, InvoiceBadge, NudgeBadge } from '../badges'
 import Fee from '../Fee'
@@ -10,9 +10,11 @@ type Props = {
 
 const order = (deal: Deal) => STATUSES.findIndex((s) => s.id === deal.status)
 
-// The deal log as a table: one row per deal, in pipeline order.
+// The deal log as a table: one row per deal, in pipeline order, and within a status what needs attention
+// first, as on the board.
 export default function DealTable({ deals, onSelect }: Props) {
-  const rows = [...deals].sort((a, b) => order(a) - order(b) || a.company.localeCompare(b.company))
+  const attention = byAttention()
+  const rows = [...deals].sort((a, b) => order(a) - order(b) || attention(a, b))
 
   return (
     <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">

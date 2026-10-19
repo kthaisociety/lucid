@@ -198,6 +198,39 @@ export const isConfirmed = (deal: Deal) => deal.status === 'signed' || deal.stat
 export const isUnpaid = (deal: Deal) =>
   isConfirmed(deal) && (deal.feeSEK ?? 0) > 0 && deal.invoiceStatus !== 'paid' && deal.invoiceStatus !== 'cancelled'
 
+// A finished deal with something left to do: its fee not yet paid, or no rating yet.
+export const needsWrapUp = (deal: Deal) => deal.status === 'finished' && (isUnpaid(deal) || deal.rating === null)
+
+const nudgeOrder: Nudge['kind'][] = ['overdue', 'your-turn', 'no-reply', 'inactive']
+
+// The order of deals with the same status, on the board and in the list: what needs attention first.
+// - Open deals: those with a nudge, the most pressing kind first (overdue, your turn, no reply, inactive)
+//   and the longest waiting first within it; then by next step due, soonest first, with none last.
+// - Finished: those with something left to do first; then the latest event first.
+// - Otherwise, and on ties: the most recently added first.
+// Deals of different kinds (open, finished, canceled) order by kind first, so sorting a mix never puts
+// two open deals out of their order.
+export function byAttention(now = Date.now()) {
+  return (a: Deal, b: Deal): number => {
+    const rank = (d: Deal): number[] => {
+      if (d.status === 'finished') {
+        const when = Date.parse(d.endDate ?? d.startDate ?? '') || 0
+        return [1, needsWrapUp(d) ? 0 : 1, -when]
+      }
+      if (d.status === 'canceled') return [2]
+      const nudge = nudgeFor(d, now)
+      const due = d.nextStepDue ? Date.parse(d.nextStepDue) : Infinity
+      // Two nudges alike (same kind, as long): the nearer next step first.
+      return nudge ? [0, 0, nudgeOrder.indexOf(nudge.kind), -nudge.days, due] : [0, 1, due]
+    }
+    const [ra, rb] = [rank(a), rank(b)]
+    for (let i = 0; i < Math.min(ra.length, rb.length); i++) {
+      if (ra[i] !== rb[i]) return ra[i] < rb[i] ? -1 : 1
+    }
+    return b.createdAt.localeCompare(a.createdAt)
+  }
+}
+
 export function statusLabel(status: Status): string {
   return STATUSES.find((s) => s.id === status)?.label ?? status
 }
