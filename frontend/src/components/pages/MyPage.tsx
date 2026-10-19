@@ -255,7 +255,16 @@ export default function MyPage({
                 </ul>
               )}
             </section>
-            <BarList title="Your deals by status" bars={stats.report.byStatus} />
+            {stats.report.deals > 0 ? (
+              <BarList title="Your deals by status" bars={stats.report.byStatus} />
+            ) : (
+              <section aria-label="Your deals by status" className="rounded-xl border border-gray-200 bg-surface p-4">
+                <h3 className="text-xs font-semibold text-gray-700">Your deals by status</h3>
+                <p className="mt-2 text-xs text-gray-500">
+                  You own no deals in {semester}. Claim a lead on the board with Assign to me, or add one with New Lead.
+                </p>
+              </section>
+            )}
           </div>
 
           {stats.supporting.length > 0 && (

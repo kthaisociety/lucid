@@ -501,6 +501,12 @@ export default function App() {
                 element={
                   <PipelineView
                     deals={inSemester.filter((deal) => matches(deal, query))}
+                    semester={semester}
+                    searching={query.trim() !== ''}
+                    otherSemester={[...new Set(all.map((d) => d.semester))].filter((s) => s !== semester).sort(compareSemesters)[0] ?? null}
+                    canAddLead={user !== null}
+                    onNewLead={() => setAddingLead(true)}
+                    onSemester={setSemester}
                     meId={user?.memberId}
                     onSelect={setSelectedId}
                     onMove={(id, status) => saveDeal(id, { status })}

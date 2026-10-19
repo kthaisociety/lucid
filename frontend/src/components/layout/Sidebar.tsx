@@ -44,16 +44,7 @@ export default function Sidebar({ user, userError, theme, onTheme, onSignOut, on
         ))}
       </nav>
 
-      {/* Where Connect Gmail is on, the user chip below says where it stands instead. */}
       <div className="mt-auto">
-        {(!user?.gmail || user.gmail === 'off') && (
-          <p
-            title="Soon, emails with a contact will land on the deal's timeline on their own. Until then, add a quick note after each touchpoint: it resets the follow-up timer."
-            className="flex items-center gap-1.5 px-2.5 pb-3 text-[11px] text-gray-500"
-          >
-            <Mail size={12} aria-hidden /> Email sync: coming soon
-          </p>
-        )}
         <div className="px-2.5 pb-3">
           <ThemeSwitch theme={theme} onChange={onTheme} />
         </div>
