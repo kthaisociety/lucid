@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net/http"
@@ -46,9 +47,10 @@ func NewOAuth(cfg OAuthConfig) *OAuth {
 	}
 }
 
-// Begin starts connecting: it sets the flow cookie and returns the provider's URL to send the browser to.
-func (o *OAuth) Begin(w http.ResponseWriter) string {
-	f := flow{State: randomString(), Expires: time.Now().Add(flowTTL).Unix()}
+// Begin starts connecting for the user forWhom (their Subject): it sets the flow cookie and returns the
+// provider's URL to send the browser to.
+func (o *OAuth) Begin(w http.ResponseWriter, forWhom string) string {
+	f := flow{State: randomString(), For: forWhom, Expires: time.Now().Add(flowTTL).Unix()}
 	writeFlow(w, o.cookie, o.key, f)
 	return o.oauth.AuthCodeURL(f.State)
 }
@@ -56,11 +58,19 @@ func (o *OAuth) Begin(w http.ResponseWriter) string {
 // ErrDenied is the person saying no on the provider's consent screen.
 var ErrDenied = errors.New("access wasn't granted")
 
+// ErrSomeoneElse is a connect finishing for a user other than the one who started it: the browser signed
+// in as someone else in between. The account isn't connected to either of them.
+var ErrSomeoneElse = errors.New("the connect was started by someone else")
+
 // Finish completes connecting from the provider's redirect back to this app, clearing the flow cookie, and
-// returns the provider's tokens.
-func (o *OAuth) Finish(w http.ResponseWriter, r *http.Request) (*oauth2.Token, error) {
-	if _, err := takeFlow(w, r, o.cookie, o.key); err != nil {
+// returns the provider's tokens. forWhom must be who Begin was for; otherwise nothing is exchanged.
+func (o *OAuth) Finish(w http.ResponseWriter, r *http.Request, forWhom string) (*oauth2.Token, error) {
+	f, err := takeFlow(w, r, o.cookie, o.key)
+	if err != nil {
 		return nil, err
+	}
+	if f.For == "" || subtle.ConstantTimeCompare([]byte(f.For), []byte(forWhom)) != 1 {
+		return nil, ErrSomeoneElse
 	}
 	q := r.URL.Query()
 	if e := q.Get("error"); e == "access_denied" {

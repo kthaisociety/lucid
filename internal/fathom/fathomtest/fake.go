@@ -14,6 +14,8 @@ import (
 	"sync"
 	"testing"
 
+	"golang.org/x/oauth2"
+
 	"github.com/kthaisociety/lucid/internal/fathom"
 )
 
@@ -71,6 +73,15 @@ func (f *Fake) Denies() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.deny = true
+}
+
+// Grant is tokens for someone who said yes, as the token endpoint gives them.
+func (f *Fake) Grant() *oauth2.Token {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	access, refresh := random("access-"), random("refresh-")
+	f.access[access], f.refresh[refresh] = true, true
+	return &oauth2.Token{AccessToken: access, RefreshToken: refresh}
 }
 
 // Webhooks is the webhooks Fathom has now.

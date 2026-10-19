@@ -91,7 +91,9 @@ type flow struct {
 	State    string `json:"s"`
 	Nonce    string `json:"n"`
 	Verifier string `json:"v"`
-	Expires  int64  `json:"e"`
+	// For connecting an account: who started it, so it can only finish for them.
+	For     string `json:"f,omitempty"`
+	Expires int64  `json:"e"`
 }
 
 const flowTTL = 10 * time.Minute

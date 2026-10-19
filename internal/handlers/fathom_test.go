@@ -30,6 +30,7 @@ import (
 type fathomApp struct {
 	*signInApp
 	fathom *fathomtest.Fake
+	conns  *fathom.Connections
 }
 
 func newFathomApp(t *testing.T) *fathomApp {
@@ -49,6 +50,7 @@ func newFathomApp(t *testing.T) *fathomApp {
 	require.NoError(t, err)
 	db := databasetest.Open(t)
 	store := deals.NewStore(db).OnlyTeamMembers()
+	conns := fathom.NewConnections(db, box, oauth, "https://lucid.example")
 	router := NewRouter(Deps{
 		PingDB:      func(context.Context) error { return nil },
 		Frontend:    builtUI,
@@ -56,9 +58,9 @@ func newFathomApp(t *testing.T) *fathomApp {
 		Sessions:    auth.NewSessions(db, "http://127.0.0.1:5174"),
 		Deals:       store,
 		FathomOAuth: oauth,
-		Fathom:      fathom.NewConnections(db, box, oauth, "https://lucid.example"),
+		Fathom:      conns,
 	})
-	return &fathomApp{signInApp: &signInApp{router: router, provider: provider, store: store, db: db}, fathom: fake}
+	return &fathomApp{signInApp: &signInApp{router: router, provider: provider, store: store, db: db}, fathom: fake, conns: conns}
 }
 
 // connectFathom signs Maja in and connects her Fathom, returning her browser and the webhook Fathom made.
@@ -370,4 +372,70 @@ func TestConnectingWhileBeingRemovedWaitsForTheRemoval(t *testing.T) {
 	hooks := app.fathom.Webhooks()
 	require.Len(t, hooks, 1, "the new webhook is taken down again")
 	assert.Equal(t, first.ID, hooks[0].ID)
+}
+
+// A connect Maja started, finished after the browser signed in as Oskar, connects nobody: not her Fathom
+// to Oskar, and Oskar's own connection stays.
+func TestAConnectOnlyFinishesForWhoStartedIt(t *testing.T) {
+	app := newFathomApp(t)
+	addToTeam(t, app.store, "oskar@example.com")
+	oskar := maja()
+	oskar.Subject, oskar.Email, oskar.Name = "oskar", "oskar@example.com", "Oskar Berg"
+	b := app.browser(t)
+	require.Equal(t, "/", b.signIn(oskar))
+	require.Equal(t, "/me?fathom=connected", b.through("/auth/fathom/connect", "/auth/fathom/callback", oskar))
+	oskars := app.fathom.Webhooks()
+	require.Len(t, oskars, 1)
+
+	// Maja, in the same browser, starts connecting, and Fathom says yes.
+	addToTeam(t, app.store, "maja@example.com")
+	require.Equal(t, "/", b.signIn(maja()))
+	w := b.do(http.MethodGet, "/auth/fathom/connect")
+	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := noFollow.Get(w.Header().Get("Location"))
+	require.NoError(t, err)
+	resp.Body.Close()
+	callback, err := url.Parse(resp.Header.Get("Location"))
+	require.NoError(t, err)
+
+	// Before the callback lands, the browser signs in as Oskar again.
+	require.Equal(t, "/", b.signIn(oskar))
+	w = b.do(http.MethodGet, callback.RequestURI())
+
+	assert.Equal(t, "/me?fathom=failed", w.Header().Get("Location"))
+	assert.Equal(t, oskars, app.fathom.Webhooks(), "Oskar's webhook stays, and nothing new is made")
+	assert.Empty(t, app.fathom.Deleted)
+	unused, used := app.fathom.RefreshTokens()
+	assert.Equal(t, [2]int{1, 0}, [2]int{unused, used}, "Maja's code was never exchanged")
+}
+
+// Two first connects for the same member at once: the second sees the first's connection and deletes its
+// webhook, so none is left behind at Fathom.
+func TestTwoConnectsAtOnceLeaveOneWebhook(t *testing.T) {
+	app := newFathomApp(t)
+	member := addToTeam(t, app.store, "maja@example.com")
+
+	holdup := app.db.Begin()
+	defer holdup.Rollback()
+	require.NoError(t, holdup.Exec("SELECT 1 FROM members WHERE id = ? FOR NO KEY UPDATE", member.ID).Error)
+	errs := make(chan error, 2)
+	for range 2 {
+		token := app.fathom.Grant()
+		go func() { errs <- app.conns.Connect(context.Background(), member.ID, token) }()
+	}
+	require.Eventually(t, func() bool {
+		var waiting int64
+		app.db.Raw("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND datname = current_database()").Scan(&waiting)
+		return waiting >= 2
+	}, 5*time.Second, 10*time.Millisecond, "both connects wait on the member")
+	require.NoError(t, holdup.Commit().Error)
+	require.NoError(t, <-errs)
+	require.NoError(t, <-errs)
+
+	hooks := app.fathom.Webhooks()
+	require.Len(t, hooks, 1)
+	assert.Len(t, app.fathom.Deleted, 1)
+	var stored string
+	require.NoError(t, app.db.Raw("SELECT webhook_id FROM fathom_connections").Scan(&stored).Error)
+	assert.Equal(t, hooks[0].ID, stored, "the connection is the webhook that's left")
 }

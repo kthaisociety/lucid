@@ -37,8 +37,8 @@ func registerFathom(r *gin.Engine, api *gin.RouterGroup, oauth *auth.OAuth, sess
 	}
 
 	r.GET("/auth/fathom/connect", func(c *gin.Context) {
-		if _, ok := signedIn(c); ok {
-			c.Redirect(http.StatusFound, oauth.Begin(c.Writer))
+		if u, ok := signedIn(c); ok {
+			c.Redirect(http.StatusFound, oauth.Begin(c.Writer, u.Subject))
 		}
 	})
 
@@ -47,7 +47,9 @@ func registerFathom(r *gin.Engine, api *gin.RouterGroup, oauth *auth.OAuth, sess
 		if !ok {
 			return
 		}
-		token, err := oauth.Finish(c.Writer, c.Request)
+		// Only for whoever started it: a browser that signed in as someone else since can't connect this
+		// Fathom account to them.
+		token, err := oauth.Finish(c.Writer, c.Request, u.Subject)
 		if errors.Is(err, auth.ErrDenied) {
 			back(c, "no-access")
 			return

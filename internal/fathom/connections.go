@@ -70,9 +70,11 @@ func (c *Connections) Connect(ctx context.Context, memberID string, token *oauth
 	var old *connection
 	err = c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// The member first, as removing a member locks them first and then deletes their connection:
-		// the other way round, the two could wait on each other. KEY SHARE also holds off the removal.
+		// the other way round, the two could wait on each other. The lock holds off the removal, and
+		// another connect for the same member, which would otherwise not see this one's connection and
+		// leave its webhook behind.
 		var members []string
-		if err := tx.Raw("SELECT id FROM members WHERE id = ? FOR KEY SHARE", memberID).Scan(&members).Error; err != nil {
+		if err := tx.Raw("SELECT id FROM members WHERE id = ? FOR NO KEY UPDATE", memberID).Scan(&members).Error; err != nil {
 			return err
 		}
 		if len(members) == 0 {

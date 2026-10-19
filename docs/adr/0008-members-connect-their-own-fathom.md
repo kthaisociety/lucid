@@ -23,7 +23,8 @@ only wraps HTTP calls the docs describe, the same kind the Go server already mak
   `FATHOM_CLIENT_SECRET`, secrets: PCR 0001). Connect Fathom needs real sign-in and
   `TOKEN_ENCRYPTION_KEY`, like Connect Gmail.
 - **The flow** is the authorization code flow, with `state` in the same signed, short-lived cookie as
-  sign-in's (ADR 0004). The authorize URL isn't in Fathom's docs; it's the one their SDK uses,
+  sign-in's (ADR 0004), along with the member who started it: if the browser has signed in as someone
+  else by the time Fathom sends it back, nothing is exchanged or connected. The authorize URL isn't in Fathom's docs; it's the one their SDK uses,
   `https://fathom.video/external/v1/oauth2/authorize`. The token URL is the docs',
   `https://api.fathom.ai/external/v1/oauth2/token`.
 - **One webhook per member.** On connect, Lucid creates a webhook through Fathom's API with the member's
@@ -39,6 +40,8 @@ only wraps HTTP calls the docs describe, the same kind the Go server already mak
 - **Disconnect** forgets the connection first, then refreshes the token once and deletes the webhook at
   Fathom. If Fathom can't be reached, the connection is gone from Lucid anyway, and deliveries to its URL
   get 404. Connecting again replaces the connection and deletes the old webhook the same way.
+- **Connects take turns per member**, locking the member's row, so two at once can't both miss the
+  other's connection and leave a webhook behind.
 - **Removing a member** deletes their connection with them, as with Gmail; their webhook at Fathom is
   left behind, and its deliveries get 404.
 - **The team's webhook goes.** `POST /api/integrations/fathom` and `FATHOM_WEBHOOK_SECRET` are removed:
