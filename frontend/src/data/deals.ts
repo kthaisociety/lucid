@@ -208,16 +208,20 @@ const nudgeOrder: Nudge['kind'][] = ['overdue', 'your-turn', 'no-reply', 'inacti
 //   and the longest waiting first within it; then by next step due, soonest first, with none last.
 // - Finished: those with something left to do first; then the latest event first.
 // - Otherwise, and on ties: the most recently added first.
+// Deals of different kinds (open, finished, canceled) order by kind first, so sorting a mix never puts
+// two open deals out of their order.
 export function byAttention(now = Date.now()) {
   return (a: Deal, b: Deal): number => {
     const rank = (d: Deal): number[] => {
       if (d.status === 'finished') {
         const when = Date.parse(d.endDate ?? d.startDate ?? '') || 0
-        return [needsWrapUp(d) ? 0 : 1, -when]
+        return [1, needsWrapUp(d) ? 0 : 1, -when]
       }
+      if (d.status === 'canceled') return [2]
       const nudge = nudgeFor(d, now)
       const due = d.nextStepDue ? Date.parse(d.nextStepDue) : Infinity
-      return nudge ? [0, nudgeOrder.indexOf(nudge.kind), -nudge.days] : [1, due]
+      // Two nudges alike (same kind, as long): the nearer next step first.
+      return nudge ? [0, 0, nudgeOrder.indexOf(nudge.kind), -nudge.days, due] : [0, 1, due]
     }
     const [ra, rb] = [rank(a), rank(b)]
     for (let i = 0; i < Math.min(ra.length, rb.length); i++) {

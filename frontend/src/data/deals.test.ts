@@ -124,12 +124,14 @@ test('deals needing attention come first: nudges by how pressing, then the neare
     deal({ id: 'turn', activities: email('received', '2026-10-10T12:00:00') }),
     deal({ id: 'due-soon', nextStepDue: '2026-10-15' }),
     deal({ id: 'late-5', nextStepDue: '2026-10-08' }),
+    deal({ id: 'no-reply', activities: email('sent', '2026-10-06T12:00:00') }),
   ]
 
   expect(deals.sort(byAttention(now)).map((d) => d.id)).toEqual([
     'late-5',
     'late-1',
     'turn',
+    'no-reply',
     'quiet',
     'due-soon',
     'due-later',
@@ -151,4 +153,22 @@ test('finished deals with something left come first, then the latest', () => {
   expect(deals.map(needsWrapUp)).toEqual([false, true, false, true])
   expect(deals.sort(byAttention(now)).map((d) => d.id)).toEqual(['unrated', 'unpaid', 'done-new', 'done-old'])
   expect(needsWrapUp(finished({ feeSEK: 0, invoiceStatus: null }))).toBe(false) // free and rated
+})
+
+test('two nudges alike: the nearer next step first, not the newer deal', () => {
+  const quiet = [{ id: 'a', type: 'note' as const, source: 'manual' as const, title: '', body: '', timestamp: '2026-10-01T12:00:00' }]
+  const undatedNewer = deal({ id: 'undated', activities: quiet, createdAt: '2026-10-05T00:00:00Z' })
+  const dueToday = deal({ id: 'due-today', activities: quiet, nextStepDue: '2026-10-13', createdAt: '2026-09-01T00:00:00Z' })
+
+  expect([undatedNewer, dueToday].sort(byAttention(now)).map((d) => d.id)).toEqual(['due-today', 'undated'])
+})
+
+test('sorting open, finished and canceled deals together keeps each kind in its order', () => {
+  const lead = (id: string, nextStepDue: string) => deal({ id, status: 'lead', nextStepDue })
+  const unrated = deal({ id: 'finished', status: 'finished', rating: null, startDate: null, endDate: null })
+  const canceled = deal({ id: 'canceled', status: 'canceled' })
+
+  const sorted = [lead('late-3', '2026-10-10'), unrated, canceled, lead('late-5', '2026-10-08')].sort(byAttention(now))
+
+  expect(sorted.map((d) => d.id)).toEqual(['late-5', 'late-3', 'finished', 'canceled'])
 })
