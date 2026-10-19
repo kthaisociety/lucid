@@ -1,11 +1,19 @@
 import { useState } from 'react'
-import { KanbanSquare, List } from 'lucide-react'
+import { KanbanSquare, List, Plus } from 'lucide-react'
 import { DEAL_TYPES, nudgeFor, type Deal, type DealType, type Status } from '../data/deals'
 import KanbanBoard from './kanban/KanbanBoard'
 import DealTable from './list/DealTable'
 
 type Props = {
-  deals: Deal[]
+  deals: Deal[] // the semester's, matching the search
+  semester: string
+  // Whether a search is narrowing the deals, and the newest other semester with deals, if any: for what
+  // an empty semester says.
+  searching: boolean
+  otherSemester: string | null
+  canAddLead: boolean
+  onNewLead: () => void
+  onSemester: (semester: string) => void
   meId: string | undefined
   onSelect: (id: string) => void
   onMove: (id: string, status: Status) => void
@@ -16,7 +24,18 @@ const chip = (active: boolean) =>
     active ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-surface text-gray-600 hover:bg-gray-50'
   }`
 
-export default function PipelineView({ deals, meId, onSelect, onMove }: Props) {
+export default function PipelineView({
+  deals,
+  semester,
+  searching,
+  otherSemester,
+  canAddLead,
+  onNewLead,
+  onSemester,
+  meId,
+  onSelect,
+  onMove,
+}: Props) {
   const [view, setView] = useState<'board' | 'list'>('board')
   const [dealType, setDealType] = useState<DealType | 'all'>('all')
   const [followUpOnly, setFollowUpOnly] = useState(false)
@@ -89,11 +108,59 @@ export default function PipelineView({ deals, meId, onSelect, onMove }: Props) {
           Show canceled
         </button>
       </div>
+      {deals.length === 0 && !searching && (
+        <EmptySemester semester={semester} otherSemester={otherSemester} canAddLead={canAddLead} onNewLead={onNewLead} onSemester={onSemester} />
+      )}
       {view === 'board' ? (
         <KanbanBoard deals={visible} showCanceled={showCanceled} onSelect={onSelect} onMove={onMove} />
       ) : (
         <DealTable deals={visible} onSelect={onSelect} />
       )}
     </div>
+  )
+}
+
+// A semester with no deals: on the first day, how to start; later, where the deals are.
+function EmptySemester({
+  semester,
+  otherSemester,
+  canAddLead,
+  onNewLead,
+  onSemester,
+}: {
+  semester: string
+  otherSemester: string | null
+  canAddLead: boolean
+  onNewLead: () => void
+  onSemester: (semester: string) => void
+}) {
+  return (
+    <section aria-label="No deals" className="mx-4 mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-gray-300 bg-surface px-4 py-3 md:mx-6">
+      <div className="min-w-0 flex-1 text-xs text-gray-600">
+        <p className="font-semibold text-gray-900">{otherSemester ? `No deals in ${semester} yet` : 'No deals yet'}</p>
+        <p className="mt-0.5">
+          {otherSemester
+            ? 'Add one with New Lead, or look at another semester.'
+            : 'Add the first lead with New Lead: the company, its contact if you know them, and the next step. Companies and contacts come along with it.'}
+        </p>
+      </div>
+      {otherSemester && (
+        <button
+          type="button"
+          onClick={() => onSemester(otherSemester)}
+          className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+        >
+          Go to {otherSemester}
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={onNewLead}
+        disabled={!canAddLead}
+        className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
+      >
+        <Plus size={14} aria-hidden /> New Lead
+      </button>
+    </section>
   )
 }

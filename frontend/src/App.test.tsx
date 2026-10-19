@@ -1575,3 +1575,41 @@ test('Team shows who has connected Fathom', async () => {
   expect(me).toHaveTextContent('Connected')
   expect(within(table).getByText('Iris Wallin').closest('tr')).toHaveTextContent('Not yet')
 })
+
+test('an empty pipeline says how to start, and New Lead starts it', async () => {
+  api.deals = []
+  renderAt()
+
+  const empty = await screen.findByRole('region', { name: 'No deals' })
+  expect(empty).toHaveTextContent('No deals yet')
+  expect(within(empty).queryByRole('button', { name: /Go to/ })).not.toBeInTheDocument()
+  fireEvent.click(within(empty).getByRole('button', { name: 'New Lead' }))
+  expect(await dialogNamed(/New lead/)).toBeInTheDocument()
+})
+
+test('an empty semester offers the newest one with deals', async () => {
+  api.deals = api.deals.filter((d) => d.semester !== thisSemester)
+  renderAt()
+
+  const empty = await screen.findByRole('region', { name: 'No deals' })
+  expect(empty).toHaveTextContent(`No deals in ${thisSemester} yet`)
+  fireEvent.click(within(empty).getByRole('button', { name: `Go to ${lastSemester}` }))
+
+  expect(await screen.findByText('Granit Consulting')).toBeInTheDocument()
+  expect(screen.queryByRole('region', { name: 'No deals' })).not.toBeInTheDocument()
+})
+
+test('a search that finds nothing isn’t an empty semester', async () => {
+  await renderApp()
+
+  fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'nothing matches this' } })
+
+  expect(screen.queryByRole('region', { name: 'No deals' })).not.toBeInTheDocument()
+})
+
+test('My page says so when you own no deals this semester', async () => {
+  renderAt('/me')
+
+  const byStatus = await screen.findByRole('region', { name: 'Your deals by status' })
+  expect(byStatus).toHaveTextContent(`You own no deals in ${thisSemester}`)
+})
