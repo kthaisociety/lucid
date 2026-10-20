@@ -1670,3 +1670,14 @@ test('the board says when a search narrows it, and clears it', async () => {
   expect(screen.getByText('Kvarnholmen AI')).toBeInTheDocument()
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
 })
+
+test('the search count is what the board shows, and says what the filters hide', async () => {
+  await renderApp()
+
+  fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'brygga' } }) // canceled, so hidden
+
+  expect(screen.getByRole('status')).toHaveTextContent(`No deals in ${thisSemester} matching “brygga”, 1 more hidden by the filters`)
+  fireEvent.click(screen.getByRole('button', { name: 'Show canceled' }))
+  expect(screen.getByRole('status')).toHaveTextContent(`1 deal in ${thisSemester} matching “brygga”`)
+  expect(screen.getByRole('status')).not.toHaveTextContent('hidden')
+})

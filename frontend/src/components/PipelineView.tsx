@@ -112,7 +112,8 @@ export default function PipelineView({
       </div>
       {query && (
         <p role="status" className="mx-4 mb-3 flex items-center gap-2 text-xs text-gray-600 md:mx-6">
-          {deals.length === 0 ? 'No deals' : `${deals.length} ${deals.length === 1 ? 'deal' : 'deals'}`} in {semester} matching “{query}”
+          {visible.length === 0 ? 'No deals' : `${visible.length} ${visible.length === 1 ? 'deal' : 'deals'}`} in {semester} matching “{query}”
+          {deals.length > visible.length && `, ${deals.length - visible.length} more hidden by the filters`}
           <button type="button" onClick={onClearSearch} className="font-semibold text-indigo-700 hover:underline">
             Clear search
           </button>
