@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import { Navigate, Route, Routes } from 'react-router'
+import { Navigate, Route, Routes, useLocation } from 'react-router'
 import {
   addNote,
   createCompany,
@@ -115,6 +115,14 @@ export default function App() {
   const [semester, setSemester] = useState(() => currentSemester())
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  // Each page searches its own things (deals, companies, contacts), so a search ends with its page: one
+  // typed on Contacts mustn't quietly hide cards on the board.
+  const { pathname } = useLocation()
+  const [searchedOn, setSearchedOn] = useState(pathname)
+  if (pathname !== searchedOn) {
+    setSearchedOn(pathname)
+    setQuery('')
+  }
   const [addingLead, setAddingLead] = useState(false)
 
   useEffect(() => {
@@ -502,7 +510,8 @@ export default function App() {
                   <PipelineView
                     deals={inSemester.filter((deal) => matches(deal, query))}
                     semester={semester}
-                    searching={query.trim() !== ''}
+                    query={query.trim()}
+                    onClearSearch={() => setQuery('')}
                     otherSemester={[...new Set(all.map((d) => d.semester))].filter((s) => s !== semester).sort(compareSemesters)[0] ?? null}
                     canAddLead={user !== null}
                     onNewLead={() => setAddingLead(true)}
