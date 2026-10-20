@@ -1681,3 +1681,12 @@ test('the search count is what the board shows, and says what the filters hide',
   expect(screen.getByRole('status')).toHaveTextContent(`1 deal in ${thisSemester} matching “brygga”`)
   expect(screen.getByRole('status')).not.toHaveTextContent('hidden')
 })
+
+test('Reports shows how the work is shared out across the team, without fees', async () => {
+  renderAt('/reports')
+
+  const workload = await screen.findByRole('region', { name: 'Team workload' })
+  expect(within(workload).getByText('Maja Holm')).toBeInTheDocument()
+  expect(within(workload).getByText('Unassigned').closest('tr')).toHaveTextContent('1')
+  expect(workload).not.toHaveTextContent('SEK')
+})

@@ -528,7 +528,7 @@ export default function App() {
                 path="reports"
                 element={
                   canSeeReports(user?.role) ? (
-                    <ReportsPage deals={all} semester={semester} onSelect={openDeal} />
+                    <ReportsPage deals={all} members={members} semester={semester} onSelect={openDeal} />
                   ) : (
                     <p className="m-6 text-sm text-gray-500">
                       {user ? 'Reports are for the board and admins.' : 'Loading…'}

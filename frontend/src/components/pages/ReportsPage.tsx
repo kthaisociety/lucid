@@ -1,5 +1,5 @@
-import { compareSemesters, nudgeFor, type Deal } from '../../data/deals'
-import { reportFor } from '../../data/views'
+import { compareSemesters, nudgeFor, type Deal, type Person } from '../../data/deals'
+import { reportFor, workloadFor } from '../../data/views'
 import { formatSEK, percent } from '../../format'
 import { NudgeBadge } from '../badges'
 import { PageTitle, cell, headCell } from './common'
@@ -7,12 +7,14 @@ import { BarList, Tile } from './stats'
 
 type Props = {
   deals: Deal[] // every semester's
+  members: Person[] // the team, for how the work is shared out
   semester: string
   onSelect: (id: string) => void
 }
 
-export default function ReportsPage({ deals, semester, onSelect }: Props) {
+export default function ReportsPage({ deals, members, semester, onSelect }: Props) {
   const report = reportFor(semester, deals)
+  const workload = workloadFor(semester, deals, members)
   const semesters = [...new Set(deals.map((d) => d.semester))].sort(compareSemesters)
   const history = semesters.map((s) => reportFor(s, deals))
 
@@ -51,6 +53,40 @@ export default function ReportsPage({ deals, semester, onSelect }: Props) {
             ))}
           </ul>
         )}
+      </section>
+
+      <section aria-label="Team workload" className="mt-3 overflow-x-auto">
+        <h3 className="text-xs font-semibold text-gray-700">Team workload</h3>
+        <p className="mb-2 text-[11px] text-gray-500">How the semester’s open deals are shared out, to spot who could use a hand.</p>
+        <table className="w-full min-w-[640px] border-separate border-spacing-0 overflow-hidden rounded-xl border border-gray-200 bg-surface text-left text-xs">
+          <thead className="bg-gray-50 text-[11px] text-gray-500">
+            <tr>
+              {['Member', 'Owns', 'Supports', 'Waiting on them', 'Next steps this week'].map((h) => (
+                <th key={h} className={headCell}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {workload.rows.map((r) => (
+              <tr key={r.member.id}>
+                <td className={`${cell} font-semibold text-gray-900`}>{r.member.name}</td>
+                <td className={cell}>{r.owns || '—'}</td>
+                <td className={cell}>{r.supports || '—'}</td>
+                <td className={r.waiting ? `${cell} font-semibold text-amber-700` : cell}>{r.waiting || '—'}</td>
+                <td className={cell}>{r.dueThisWeek || '—'}</td>
+              </tr>
+            ))}
+            {workload.unassigned > 0 && (
+              <tr>
+                <td className={`${cell} text-gray-500 italic`}>Unassigned</td>
+                <td className={cell}>{workload.unassigned}</td>
+                <td className={cell} colSpan={3} />
+              </tr>
+            )}
+          </tbody>
+        </table>
       </section>
 
       <section aria-label="Semesters compared" className="mt-3">
