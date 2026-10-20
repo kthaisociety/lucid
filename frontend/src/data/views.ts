@@ -4,10 +4,12 @@ import {
   STATUSES,
   compareSemesters,
   isConfirmed,
+  DAY,
   isOpen,
   isUnpaid,
   lastTouchpoint,
   nudgeFor,
+  today,
   type Company,
   type Contact,
   type Deal,
@@ -178,4 +180,35 @@ export function myStatsFor(memberId: string, semester: string, all: Deal[], now 
     waiting,
     history: semesters.map((s) => reportFor(s, owned, now)),
   }
+}
+
+// How the semester's open deals are shared out across the team (for Reports): who owns and supports how
+// many, and how many of their own wait on them. A spread of the work, not a ranking: no fees here.
+export type WorkloadRow = {
+  member: Person
+  owns: number // open deals they own
+  supports: number // open deals they help on
+  waiting: number // deals they own with a nudge
+  dueThisWeek: number // deals they own with a next step due in the next 7 days
+}
+
+export type Workload = { rows: WorkloadRow[]; unassigned: number }
+
+export function workloadFor(semester: string, all: Deal[], members: Person[], now = Date.now()): Workload {
+  const open = all.filter((d) => d.semester === semester && isOpen(d))
+  const from = today(new Date(now))
+  const to = today(new Date(now + 7 * DAY))
+  const rows = members.map((member) => {
+    const owned = open.filter((d) => d.owner?.id === member.id)
+    return {
+      member,
+      owns: owned.length,
+      supports: open.filter((d) => d.support.some((p) => p.id === member.id)).length,
+      waiting: owned.filter((d) => nudgeFor(d, now) !== null).length,
+      dueThisWeek: owned.filter((d) => d.nextStepDue !== null && d.nextStepDue >= from && d.nextStepDue <= to).length,
+    }
+  })
+  // The busiest first; the team's order (by name) among equals.
+  rows.sort((a, b) => b.owns + b.supports - (a.owns + a.supports) || a.member.name.localeCompare(b.member.name))
+  return { rows, unassigned: open.filter((d) => d.owner === null).length }
 }

@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { fixtureCompanies, fixtureContacts, fixtureDeals, lastSemester, thisSemester } from '../test/fixtures'
 import type { Deal } from './deals'
-import { companiesFrom, contactsFrom, myStatsFor, reportFor } from './views'
+import { companiesFrom, contactsFrom, myStatsFor, reportFor, workloadFor } from './views'
 
 test('a company gathers its deals from every semester, newest first, and its contacts', () => {
   const granit = companiesFrom(fixtureCompanies, fixtureContacts, fixtureDeals).find((r) => r.company.name === 'Granit Consulting')!
@@ -97,4 +97,30 @@ test('what waits on a member comes most pressing first: overdue, their turn, no 
   ]
 
   expect(myStatsFor('m-me', thisSemester, deals, now).waiting.map((d) => d.id)).toEqual(['late5', 'late1', 'turn', 'noreply', 'quiet'])
+})
+
+test('the workload shows how the semester’s open deals are shared out, busiest first', () => {
+  const now = Date.parse('2026-10-20T12:00:00Z')
+  const ada = { id: 'm-ada', name: 'Zoe', email: 'zoe@example.com' } // the busiest, last by name
+  const bo = { id: 'm-bo', name: 'Bo', email: 'bo@example.com' }
+  const cy = { id: 'm-cy', name: 'Cy', email: 'cy@example.com' }
+  const recent = [{ id: 'n', type: 'note' as const, source: 'manual' as const, title: '', body: '', timestamp: '2026-10-19T12:00:00Z' }]
+  const base = { ...fixtureDeals[0], semester: thisSemester, status: 'discussing' as const, support: [], nextStepDue: null, activities: recent }
+  const deals: Deal[] = [
+    { ...base, id: 'overdue', owner: ada, nextStepDue: '2026-10-15' },
+    { ...base, id: 'due-soon', owner: ada, nextStepDue: '2026-10-23' },
+    { ...base, id: 'bos', owner: bo, support: [ada], nextStepDue: '2026-11-30' },
+    { ...base, id: 'done', owner: cy, status: 'finished' },
+    { ...base, id: 'earlier', owner: cy, semester: lastSemester },
+    { ...base, id: 'nobody', owner: null },
+  ]
+
+  const workload = workloadFor(thisSemester, deals, [cy, bo, ada], now)
+
+  expect(workload.rows.map((r) => [r.member.name, r.owns, r.supports, r.waiting, r.dueThisWeek])).toEqual([
+    ['Zoe', 2, 1, 1, 1],
+    ['Bo', 1, 0, 0, 0],
+    ['Cy', 0, 0, 0, 0],
+  ])
+  expect(workload.unassigned).toBe(1)
 })
