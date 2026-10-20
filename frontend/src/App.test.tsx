@@ -1646,3 +1646,27 @@ test('the board puts what needs attention first in each column', async () => {
   expect(lead.findIndex((t) => t.includes('Stadsnät Labs'))).toBeLessThan(lead.findIndex((t) => t.includes('Vinga Voice')))
   expect(lead.findIndex((t) => t.includes('Lumen Health'))).toBeLessThan(lead.findIndex((t) => t.includes('Vinga Voice')))
 })
+
+test('a search ends with its page, so one typed on Contacts doesn’t hide the board', async () => {
+  renderAt('/contacts')
+  await screen.findByText('Lina Dahl')
+  fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'lina' } })
+
+  goTo('Pipeline')
+
+  expect(screen.getByLabelText('Search')).toHaveValue('')
+  expect(await screen.findByText('Kvarnholmen AI')).toBeInTheDocument()
+})
+
+test('the board says when a search narrows it, and clears it', async () => {
+  await renderApp()
+
+  fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'granit' } })
+  expect(screen.getByRole('status')).toHaveTextContent(`1 deal in ${thisSemester} matching “granit”`)
+  expect(screen.queryByText('Kvarnholmen AI')).not.toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+  expect(screen.getByLabelText('Search')).toHaveValue('')
+  expect(screen.getByText('Kvarnholmen AI')).toBeInTheDocument()
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})

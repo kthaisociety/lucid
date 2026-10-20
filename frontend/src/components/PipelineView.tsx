@@ -7,9 +7,10 @@ import DealTable from './list/DealTable'
 type Props = {
   deals: Deal[] // the semester's, matching the search
   semester: string
-  // Whether a search is narrowing the deals, and the newest other semester with deals, if any: for what
-  // an empty semester says.
-  searching: boolean
+  // The search narrowing the deals ('' for none), and the newest other semester with deals, if any: for
+  // what an empty semester says.
+  query: string
+  onClearSearch: () => void
   otherSemester: string | null
   canAddLead: boolean
   onNewLead: () => void
@@ -27,7 +28,8 @@ const chip = (active: boolean) =>
 export default function PipelineView({
   deals,
   semester,
-  searching,
+  query,
+  onClearSearch,
   otherSemester,
   canAddLead,
   onNewLead,
@@ -108,7 +110,15 @@ export default function PipelineView({
           Show canceled
         </button>
       </div>
-      {deals.length === 0 && !searching && (
+      {query && (
+        <p role="status" className="mx-4 mb-3 flex items-center gap-2 text-xs text-gray-600 md:mx-6">
+          {deals.length === 0 ? 'No deals' : `${deals.length} ${deals.length === 1 ? 'deal' : 'deals'}`} in {semester} matching “{query}”
+          <button type="button" onClick={onClearSearch} className="font-semibold text-indigo-700 hover:underline">
+            Clear search
+          </button>
+        </p>
+      )}
+      {deals.length === 0 && !query && (
         <EmptySemester semester={semester} otherSemester={otherSemester} canAddLead={canAddLead} onNewLead={onNewLead} onSemester={onSemester} />
       )}
       {view === 'board' ? (
