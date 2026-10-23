@@ -160,7 +160,7 @@ share one version.
 | Environment | URL | Data |
 |---|---|---|
 | Live | `https://lucid.kthais.com` | the team's real deals; members connect Gmail and Fathom |
-| Staging | `https://lucid-stg.kthais.com` | made-up only: the seed (`./lucid-seed`, once), test meetings, testers' own mail |
+| Staging | `https://lucid-staging.kthais.com` | made-up only: the seed (`./lucid-seed`, once), test meetings, testers' own mail |
 
 Each has its own Google OAuth client (callbacks `/auth/callback` and `/auth/gmail/callback` on its own
 URL), Fathom OAuth app (callback `/auth/fathom/callback`), `TOKEN_ENCRYPTION_KEY` and first admin (`./lucid appoint-admin`, also on
