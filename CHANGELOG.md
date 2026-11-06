@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/kthaisociety/lucid/compare/v1.0.0...v1.1.0) (2026-11-06)
+
+
+### Features
+
+* a deal's owner or an admin can delete it (ADR 0010) ([#30](https://github.com/kthaisociety/lucid/issues/30)) ([306cd5a](https://github.com/kthaisociety/lucid/commit/306cd5af9b29ebbc3fcebacf7fc3585b2f21db10))
+
 ## 1.0.0 (2026-10-20)
 
 
