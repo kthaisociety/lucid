@@ -148,3 +148,13 @@ func fail(c *gin.Context, err error) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "something went wrong"})
 	}
 }
+
+func deleteDeal(store *deals.Store) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if err := store.Delete(c.Request.Context(), c.Param("id"), auth.Current(c)); err != nil {
+			fail(c, err)
+			return
+		}
+		c.Status(http.StatusNoContent)
+	}
+}

@@ -352,3 +352,26 @@ func membersExist(tx *gorm.DB, ids []string) error {
 	}
 	return nil
 }
+
+// Delete removes a deal with its timeline and support. Only its owner or an admin may (docs/adr/0010).
+func (s *Store) Delete(ctx context.Context, id string, u auth.User) error {
+	if !uuidPattern.MatchString(id) {
+		return ErrNotFound
+	}
+	me, err := s.SignIn(ctx, u)
+	if err != nil {
+		return err
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var d Deal
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "owner_id").Where("id = ?", id).Take(&d).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		} else if err != nil {
+			return err
+		}
+		if me.Role != "admin" && (d.OwnerID == nil || *d.OwnerID != me.ID) {
+			return &ForbiddenError{msg: "only the deal's owner or an admin can delete it"}
+		}
+		return tx.Where("id = ?", id).Delete(&Deal{}).Error
+	})
+}

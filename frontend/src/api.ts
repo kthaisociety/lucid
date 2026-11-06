@@ -127,6 +127,8 @@ export type DealPatch = Partial<
 export const updateDeal = (id: string, patch: DealPatch) =>
   call<Deal>('PATCH', `/api/deals/${encodeURIComponent(id)}`, patch)
 
+export const deleteDeal = (id: string) => call<void>('DELETE', `/api/deals/${encodeURIComponent(id)}`)
+
 export const addNote = (id: string, body: string) =>
   call<Activity>('POST', `/api/deals/${encodeURIComponent(id)}/notes`, { body })
 

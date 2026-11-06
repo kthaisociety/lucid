@@ -254,3 +254,27 @@ func names(members []deals.MemberView) []string {
 	}
 	return out
 }
+
+func TestDeleteIsForTheOwnerOrAnAdmin(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	d := addLead(t, s, "Nordljus AB")
+	_, err := s.AddNote(ctx, d.ID, "Wrong company", alva)
+	require.NoError(t, err)
+
+	_, err = s.AddMember(ctx, deals.MemberInput{Email: oskar.Email, Name: oskar.Name})
+	require.NoError(t, err)
+	var forbidden *deals.ForbiddenError
+	require.ErrorAs(t, s.Delete(ctx, d.ID, oskar), &forbidden)
+
+	require.NoError(t, s.Delete(ctx, d.ID, alva))
+	_, err = s.Get(ctx, d.ID)
+	require.ErrorIs(t, err, deals.ErrNotFound)
+	require.ErrorIs(t, s.Delete(ctx, d.ID, alva), deals.ErrNotFound)
+
+	other := addLead(t, s, "Fjällbris AB")
+	maja := auth.User{Subject: "maja", Email: "maja@example.com", Name: "Maja Holm"}
+	_, err = s.AddMember(ctx, deals.MemberInput{Email: maja.Email, Name: maja.Name, Role: "admin"})
+	require.NoError(t, err)
+	require.NoError(t, s.Delete(ctx, other.ID, maja))
+}
