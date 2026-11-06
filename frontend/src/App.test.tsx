@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { stubApi, type FakeApi } from './test/fakeApi'
-import { lastSemester, thisSemester } from './test/fixtures'
+import { devMember, lastSemester, thisSemester } from './test/fixtures'
 
 let api: FakeApi
 
@@ -1689,4 +1689,30 @@ test('Reports shows how the work is shared out across the team, without fees', a
   expect(within(workload).getByText('Maja Holm')).toBeInTheDocument()
   expect(within(workload).getByText('Unassigned').closest('tr')).toHaveTextContent('1')
   expect(workload).not.toHaveTextContent('SEK')
+})
+
+test("a deal's owner or an admin can delete it, after asking again", async () => {
+  api = stubApi({ role: 'member' })
+  api.deals.find((d) => d.company === 'Lumen Health')!.owner = devMember
+  await renderApp()
+
+  // Someone else's deal: no Delete for a member.
+  let drawer = open('Kvarnholmen AI')
+  expect(within(drawer).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+  fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
+
+  drawer = open('Lumen Health')
+  fireEvent.click(within(drawer).getByRole('button', { name: 'Delete' }))
+  fireEvent.click(within(drawer).getByRole('button', { name: 'Delete deal and its timeline' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(screen.queryByText('Lumen Health')).not.toBeInTheDocument()
+  expect(api.deals.some((d) => d.company === 'Lumen Health')).toBe(false)
+})
+
+test('an admin can delete anyone’s deal', async () => {
+  await renderApp()
+  const drawer = open('Kvarnholmen AI')
+  fireEvent.click(within(drawer).getByRole('button', { name: 'Delete' }))
+  fireEvent.click(within(drawer).getByRole('button', { name: 'Delete deal and its timeline' }))
+  await waitFor(() => expect(screen.queryByText('Kvarnholmen AI')).not.toBeInTheDocument())
 })

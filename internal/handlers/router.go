@@ -59,6 +59,7 @@ func NewRouter(d Deps) *gin.Engine {
 	signedIn.POST("/deals", createDeal(d.Deals))
 	signedIn.GET("/deals/:id", getDeal(d.Deals))
 	signedIn.PATCH("/deals/:id", updateDeal(d.Deals))
+	signedIn.DELETE("/deals/:id", deleteDeal(d.Deals))
 	signedIn.POST("/deals/:id/notes", addNote(d.Deals))
 	registerCompanies(signedIn, d.Deals)
 	registerTeam(signedIn, d.Deals, d.Gmail, d.Fathom)

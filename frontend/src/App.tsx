@@ -21,6 +21,7 @@ import {
   updateCompany,
   updateContact,
   updateDeal,
+  deleteDeal,
   updateMe,
   ApiError,
   SIGNED_OUT,
@@ -333,6 +334,13 @@ export default function App() {
     )
   }
 
+  // Rejects if the server refuses, so the drawer shows why; the deal stays until then.
+  const removeDeal = async (id: string) => {
+    await deleteDeal(id)
+    setSelectedId(null)
+    setData((d) => d && { ...d, deals: d.deals.filter((deal) => deal.id !== id) })
+  }
+
   // A new lead is owned by whoever adds it (the server records the signed-in user), so adding waits
   // until we know who that is.
   const addLead = async (lead: Omit<NewLeadInput, 'semester'>) => {
@@ -587,6 +595,7 @@ export default function App() {
           onChange={(patch) => saveDeal(selected.id, patch)}
           onAddNote={(text) => saveNote(selected.id, text)}
           onSelect={openDeal}
+          onDelete={isAdmin || selected.owner?.id === user?.memberId ? () => removeDeal(selected.id) : undefined}
         />
       )}
       {addingLead && user && (

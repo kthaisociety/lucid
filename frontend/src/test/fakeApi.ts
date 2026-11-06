@@ -286,6 +286,12 @@ export function stubApi(
     const deal = match && api.deals.find((d) => d.id === decodeURIComponent(match[1]))
     if (match && !deal) return error(404, 'deal not found')
     if (deal && method === 'GET' && !match[2]) return json(deal)
+    if (deal && method === 'DELETE' && !match[2]) {
+      const me = api.members.find((m) => m.id === devMember.id)
+      if (me?.role !== 'admin' && deal.owner?.id !== devMember.id) return error(403, "only the deal's owner or an admin can delete it")
+      api.deals.splice(api.deals.indexOf(deal), 1)
+      return new Response(null, { status: 204 })
+    }
     if (deal && method === 'PATCH' && !match[2]) {
       const { companyId, contactId, ownerId, supportIds, links, ...fields } = body
       if (companyId !== undefined && companyId !== deal.companyId) {

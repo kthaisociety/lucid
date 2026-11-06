@@ -27,6 +27,7 @@ import { formatDate } from '../../format'
 import type { DealPatch } from '../../api'
 import { useDraft, useModal } from '../../hooks'
 import { DealTypeBadge, NudgeBadge } from '../badges'
+import { DeleteButton } from '../dialogs/FormDialog'
 import OwnerAvatar from '../OwnerAvatar'
 
 type Props = {
@@ -40,6 +41,7 @@ type Props = {
   onChange: (patch: DealPatch) => void
   onAddNote: (text: string) => Promise<void>
   onSelect: (id: string) => void
+  onDelete?: () => Promise<void> // only for the deal's owner and admins
 }
 
 const activityIcons = { email: Mail, meeting: Users, note: StickyNote } satisfies Record<Activity['type'], unknown>
@@ -82,6 +84,7 @@ export default function DealDetailDrawer({
   onChange,
   onAddNote,
   onSelect,
+  onDelete,
 }: Props) {
   const [note, setNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
@@ -569,6 +572,11 @@ export default function DealDetailDrawer({
               })}
             </ol>
           </section>
+          {onDelete && (
+            <div className="mx-5 mt-6 border-t border-gray-200 pt-3">
+              <DeleteButton what="deal and its timeline" onDelete={onDelete} />
+            </div>
+          )}
         </div>
       </aside>
     </div>

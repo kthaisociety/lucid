@@ -12,7 +12,8 @@ Words as this project uses them.
 - **Deal**: one piece of work with a company in one semester: an event, a partnership or a job post. A
   company can have many deals (one per semester, or several at once). Replaces a row in the team's deal
   log spreadsheet.
-- **Status**: where a deal is: Lead → Discussing → Agreement → Signed → Finished, or Canceled. The board
+- **Status**: where a deal is: Lead → Discussing → Agreement → Signed → Finished, or Canceled (it ended
+  without agreement; a deal entered by mistake is deleted instead, ADR 0010). The board
   has one column per status.
 - **Semester**: HT (autumn) or VT (spring) plus the year, e.g. "HT 2026". The app shows one semester at a
   time.

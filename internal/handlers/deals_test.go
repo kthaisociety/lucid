@@ -76,6 +76,11 @@ func TestDealLifecycle(t *testing.T) {
 	require.Len(t, list, 1)
 	assert.Equal(t, "discussing", list[0].Status)
 	assert.Len(t, list[0].Activities, 2)
+
+	// The owner deletes it, timeline and all.
+	require.Equal(t, http.StatusNoContent, send(r, http.MethodDelete, "/api/deals/"+created.ID, "").Code)
+	assert.Equal(t, http.StatusNotFound, get(r, "/api/deals/"+created.ID).Code)
+	assert.Equal(t, http.StatusNotFound, send(r, http.MethodDelete, "/api/deals/"+created.ID, "").Code)
 }
 
 func TestDealErrors(t *testing.T) {
