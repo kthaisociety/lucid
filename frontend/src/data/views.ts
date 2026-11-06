@@ -88,7 +88,8 @@ export function contactsFrom(contacts: Contact[], companies: Company[], deals: D
     .sort((a, b) => (a.contact.name || a.contact.email).localeCompare(b.contact.name || b.contact.email))
 }
 
-export type Bar = { label: string; value: number; status?: Status }
+// `owns` splits a member's bar into the deals they own and the rest, which they support.
+export type Bar = { label: string; value: number; status?: Status; owns?: number }
 
 export type SemesterReport = {
   semester: string
@@ -104,7 +105,7 @@ export type SemesterReport = {
   pipelineSEK: number // fees agreed on deals still open
   byStatus: Bar[]
   confirmedByType: Bar[]
-  byOwner: Bar[]
+  byMember: Bar[] // owns plus supports: a deal counts for everyone on it
   needsFollowUp: Deal[]
 }
 
@@ -121,13 +122,26 @@ export function reportFor(semester: string, all: Deal[], now = Date.now()): Seme
   }
   const statusCounts = count((d) => d.status)
   // By member, not name: two teammates can share a name. Shared names get their email to tell them apart.
-  const ownerCounts = count((d) => d.owner?.id ?? '')
-  const owners = new Map(deals.flatMap((d) => (d.owner ? [[d.owner.id, d.owner] as const] : [])))
-  const ownerLabel = (id: string) => {
-    const owner = owners.get(id)
-    if (!owner) return 'Unassigned'
-    const shared = [...owners.values()].some((o) => o.id !== id && o.name === owner.name)
-    return shared ? `${owner.name} (${owner.email})` : owner.name
+  const people = new Map<string, Person>()
+  const load = new Map<string, { owns: number; supports: number }>()
+  const add = (id: string, key: 'owns' | 'supports') => {
+    const n = load.get(id) ?? { owns: 0, supports: 0 }
+    n[key]++
+    load.set(id, n)
+  }
+  for (const d of deals) {
+    if (d.owner) people.set(d.owner.id, d.owner)
+    add(d.owner?.id ?? '', 'owns')
+    for (const p of d.support) {
+      people.set(p.id, p)
+      if (p.id !== d.owner?.id) add(p.id, 'supports')
+    }
+  }
+  const memberLabel = (id: string) => {
+    const member = people.get(id)
+    if (!member) return 'Unassigned'
+    const shared = [...people.values()].some((o) => o.id !== id && o.name === member.name)
+    return shared ? `${member.name} (${member.email})` : member.name
   }
   const types: DealType[] = ['Event', 'Partnership', 'Job Post']
 
@@ -144,8 +158,8 @@ export function reportFor(semester: string, all: Deal[], now = Date.now()): Seme
     pipelineSEK: sumFees(deals.filter(isOpen).filter((d) => !isConfirmed(d))),
     byStatus: STATUSES.map((s) => ({ label: s.label, value: statusCounts.get(s.id as Status) ?? 0, status: s.id as Status })),
     confirmedByType: types.map((t) => ({ label: t, value: sumFees(won.filter((d) => d.dealType === t)) })),
-    byOwner: [...ownerCounts]
-      .map(([id, value]) => ({ label: ownerLabel(id), value }))
+    byMember: [...load]
+      .map(([id, n]) => ({ label: memberLabel(id), value: n.owns + n.supports, owns: n.owns }))
       .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label)),
     needsFollowUp: deals.filter((d) => nudgeFor(d, now) !== null),
   }
