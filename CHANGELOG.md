@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/kthaisociety/lucid/compare/v1.0.0...v1.1.0) (2026-11-09)
+
+
+### Features
+
+* a deal's owner or an admin can delete it (ADR 0010) ([#30](https://github.com/kthaisociety/lucid/issues/30)) ([306cd5a](https://github.com/kthaisociety/lucid/commit/306cd5af9b29ebbc3fcebacf7fc3585b2f21db10))
+* Reports counts who supports a deal, not only who owns it ([#31](https://github.com/kthaisociety/lucid/issues/31)) ([57a8ae1](https://github.com/kthaisociety/lucid/commit/57a8ae1dea040b12a1c124320f5aa6966eaa178a))
+
 ## 1.0.0 (2026-10-20)
 
 
