@@ -41,6 +41,7 @@ export default function PipelineView({
   const [view, setView] = useState<'board' | 'list'>('board')
   const [dealType, setDealType] = useState<DealType | 'all' | 'business'>('all')
   const [followUpOnly, setFollowUpOnly] = useState(false)
+  const [freeOnly, setFreeOnly] = useState(false)
   const [owner, setOwner] = useState<'anyone' | 'mine' | 'unassigned'>('anyone')
   const [showCanceled, setShowCanceled] = useState(false)
 
@@ -48,7 +49,9 @@ export default function PipelineView({
     (deal) =>
       (dealType === 'all' || deal.dealType === dealType || (dealType === 'business' && deal.dealType !== 'MoU')) &&
       (!followUpOnly || nudgeFor(deal) !== null) &&
-      (owner === 'anyone' || (owner === 'mine' ? deal.owner?.id === meId : deal.owner === null)) &&
+      (!freeOnly || !deal.feeSEK) && // free (0) or no fee agreed yet (null)
+      (owner === 'anyone' ||
+        (owner === 'mine' ? deal.owner?.id === meId || deal.support.some((p) => p.id === meId) : deal.owner === null)) &&
       (showCanceled || deal.status !== 'canceled'),
   )
 
@@ -92,7 +95,7 @@ export default function PipelineView({
             onClick={() => setOwner(owner === 'mine' ? 'anyone' : 'mine')}
             className={chip(owner === 'mine')}
           >
-            Mine
+            On me
           </button>
         )}
         <button
@@ -105,6 +108,9 @@ export default function PipelineView({
         </button>
         <button type="button" aria-pressed={followUpOnly} onClick={() => setFollowUpOnly((on) => !on)} className={chip(followUpOnly)}>
           Needs follow-up
+        </button>
+        <button type="button" aria-pressed={freeOnly} onClick={() => setFreeOnly((on) => !on)} className={chip(freeOnly)}>
+          No fee
         </button>
         <button type="button" aria-pressed={showCanceled} onClick={() => setShowCanceled((on) => !on)} className={chip(showCanceled)}>
           Show canceled
