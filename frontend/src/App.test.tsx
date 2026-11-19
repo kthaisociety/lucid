@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { stubApi, type FakeApi } from './test/fakeApi'
-import { devMember, lastSemester, thisSemester } from './test/fixtures'
+import { devMember, earlierSemester, lastSemester, thisSemester } from './test/fixtures'
 
 let api: FakeApi
 
@@ -548,6 +548,14 @@ test('Reports sums up the semester and lists who needs a follow-up', async () =>
   expect(screen.getByText('In the pipeline', { selector: 'p' }).parentElement).toHaveTextContent('60,000 SEK')
   const followUp = screen.getByRole('region', { name: 'Needs follow-up' })
   expect(followUp).toHaveTextContent('Needs follow-up (3)')
+
+  // The chart reads left to right, oldest semester first.
+  const chart = screen.getByRole('figure', { name: 'Confirmed and paid fees by semester' })
+  expect(within(chart).getAllByRole('listitem').map((bar) => bar.getAttribute('aria-label')?.split(':')[0])).toEqual([
+    earlierSemester,
+    lastSemester,
+    thisSemester,
+  ])
 
   fireEvent.click(within(followUp).getByRole('button', { name: 'Lumen Health' }))
   expect(screen.getByRole('dialog', { name: 'Lumen Health' })).toBeInTheDocument()
