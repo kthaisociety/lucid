@@ -897,7 +897,8 @@ test('a deal can be handed to someone else, or unassigned', async () => {
   expect(card('Granit Consulting')).toHaveTextContent('Unassigned')
 })
 
-test('the board filters to my deals or unassigned ones', async () => {
+test('the board filters to deals I own or support, or unassigned ones', async () => {
+  api.deals.find((d) => d.company === 'Kvarnholmen AI')!.support.push(devMember)
   await renderApp()
 
   fireEvent.click(screen.getByRole('button', { name: 'Unassigned' }))
@@ -909,10 +910,19 @@ test('the board filters to my deals or unassigned ones', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Assign to me' }))
   fireEvent.keyDown(document, { key: 'Escape' })
 
-  fireEvent.click(screen.getByRole('button', { name: 'Mine' }))
-  expect(screen.getByText('Lumen Health')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'On me' }))
+  expect(screen.getByText('Lumen Health')).toBeInTheDocument() // owner
+  expect(screen.getByText('Kvarnholmen AI')).toBeInTheDocument() // support
   expect(screen.queryByText('Stadsnät Labs')).not.toBeInTheDocument()
   expect(screen.queryByText('Granit Consulting')).not.toBeInTheDocument()
+})
+
+test('the board filters to deals with no fee: free ones and ones without an agreed fee', async () => {
+  await renderApp()
+  fireEvent.click(screen.getByRole('button', { name: 'No fee' }))
+  expect(screen.getByText('Ekdahl Advokatbyrå')).toBeInTheDocument() // fee 0
+  expect(screen.getByText('Lumen Health')).toBeInTheDocument() // fee not agreed yet
+  expect(screen.queryByText('Granit Consulting')).not.toBeInTheDocument() // 40 000 SEK
 })
 
 test('the board filters to MoUs, or to business-only deals without them', async () => {
