@@ -33,7 +33,11 @@ export default function ReportsPage({ deals, members, semester, onSelect }: Prop
       <div className="mt-3 grid gap-3 lg:grid-cols-3">
         <BarList title="Deals by status" bars={report.byStatus} />
         <BarList title="Confirmed fees by deal type" bars={report.confirmedByType} format={formatSEK} />
-        <BarList title="Deals by owner" bars={report.byOwner} />
+        <BarList
+          title="Deals by member"
+          hint="Deals each member owns (dark) and supports (light). A deal counts for everyone on it."
+          bars={report.byMember}
+        />
       </div>
 
       <section aria-label="Needs follow-up" className="mt-3 rounded-xl border border-gray-200 bg-surface p-4">

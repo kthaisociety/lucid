@@ -56,18 +56,23 @@ test('within a semester, the most recently added deal comes first', () => {
   expect(companiesFrom([company], [], [older, newer])[0].deals.map((d) => d.id)).toEqual(['newer', 'older'])
 })
 
-test('reports count teammates who share a name separately', () => {
+test('deals by member count who owns and who supports, and tell apart teammates who share a name', () => {
   const kim1 = { id: 'm-kim1', name: 'Kim Ek', email: 'kim1@example.com' }
   const kim2 = { id: 'm-kim2', name: 'Kim Ek', email: 'kim2@example.com' }
+  const sam = { id: 'm-sam', name: 'Sam Lund', email: 'sam@example.com' }
   const deals = [
-    { ...fixtureDeals[0], id: 'a', owner: kim1 },
-    { ...fixtureDeals[0], id: 'b', owner: kim1 },
-    { ...fixtureDeals[0], id: 'c', owner: kim2 },
+    { ...fixtureDeals[0], id: 'a', owner: kim1, support: [sam] },
+    { ...fixtureDeals[0], id: 'b', owner: kim1, support: [sam, kim2] },
+    { ...fixtureDeals[0], id: 'c', owner: kim2, support: [kim2] }, // an owner listed as support counts once
+    { ...fixtureDeals[0], id: 'd', owner: null, support: [sam] },
   ]
 
-  expect(reportFor(fixtureDeals[0].semester, deals).byOwner).toEqual([
-    { label: 'Kim Ek (kim1@example.com)', value: 2 },
-    { label: 'Kim Ek (kim2@example.com)', value: 1 },
+  // Someone who only supports still shows their load.
+  expect(reportFor(fixtureDeals[0].semester, deals).byMember).toEqual([
+    { label: 'Sam Lund', value: 3, owns: 0 },
+    { label: 'Kim Ek (kim1@example.com)', value: 2, owns: 2 },
+    { label: 'Kim Ek (kim2@example.com)', value: 2, owns: 1 },
+    { label: 'Unassigned', value: 1, owns: 1 },
   ])
 })
 
