@@ -225,3 +225,28 @@ export function workloadFor(semester: string, all: Deal[], members: Person[], no
   rows.sort((a, b) => b.owns + b.supports - (a.owns + a.supports) || a.member.name.localeCompare(b.member.name))
   return { rows, unassigned: open.filter((d) => d.owner === null).length }
 }
+
+// The Calendar page: what falls on each day.
+export type CalendarKind = 'event' | 'next-step' | 'invoice'
+export type CalendarEntry = { deal: Deal; kind: CalendarKind }
+
+// Dates are YYYY-MM-DD; stepping through them in UTC keeps a day a day across DST.
+export const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10)
+
+// What each day holds: events (every day they run), next steps due on open deals, and invoices still to be paid.
+export function entriesByDay(deals: Deal[]): Map<string, CalendarEntry[]> {
+  const days = new Map<string, CalendarEntry[]>()
+  const add = (day: string, entry: CalendarEntry) => days.set(day, [...(days.get(day) ?? []), entry])
+  for (const deal of deals) {
+    if (deal.status === 'canceled') continue
+    if (deal.startDate) {
+      // shortcut: a span is capped at 60 days, so a mistyped end date can't fill a year.
+      for (let d = deal.startDate, i = 0; d <= (deal.endDate ?? deal.startDate) && i < 60; d = addDays(d, 1), i++) {
+        add(d, { deal, kind: 'event' })
+      }
+    }
+    if (deal.nextStepDue && isOpen(deal)) add(deal.nextStepDue, { deal, kind: 'next-step' })
+    if (deal.invoiceDue && deal.invoiceStatus !== 'paid' && deal.invoiceStatus !== 'cancelled') add(deal.invoiceDue, { deal, kind: 'invoice' })
+  }
+  return days
+}

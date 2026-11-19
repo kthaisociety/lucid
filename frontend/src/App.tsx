@@ -41,6 +41,7 @@ import { useTheme } from './theme'
 import CompaniesPage, { type CompanyActions } from './components/pages/CompaniesPage'
 import ContactsPage, { type ContactActions } from './components/pages/ContactsPage'
 import MyPage from './components/pages/MyPage'
+import CalendarPage from './components/pages/CalendarPage'
 import ReportsPage from './components/pages/ReportsPage'
 import SignInPage from './components/pages/SignInPage'
 import TeamPage, { type TeamActions } from './components/pages/TeamPage'
@@ -530,6 +531,7 @@ export default function App() {
                   />
                 }
               />
+              <Route path="calendar" element={<CalendarPage deals={all} meId={user?.memberId} onSelect={openDeal} />} />
               <Route path="companies" element={<CompaniesPage companies={companies} contacts={contacts} deals={all} query={query} onSelect={openDeal} actions={companyActions} contactActions={contactActions} />} />
               <Route path="contacts" element={<ContactsPage companies={companies} contacts={contacts} deals={all} query={query} onSelect={openDeal} actions={contactActions} />} />
               <Route
