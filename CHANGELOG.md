@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.0](https://github.com/kthaisociety/lucid/compare/v1.0.0...v1.1.0) (2026-11-19)
+
+
+### Features
+
+* a deal's owner or an admin can delete it (ADR 0010) ([#30](https://github.com/kthaisociety/lucid/issues/30)) ([306cd5a](https://github.com/kthaisociety/lucid/commit/306cd5af9b29ebbc3fcebacf7fc3585b2f21db10))
+* MoU is a deal type, with MoU and Business-only filters (ADR 0011) ([#33](https://github.com/kthaisociety/lucid/issues/33)) ([98d3a57](https://github.com/kthaisociety/lucid/commit/98d3a578ad6368bd246da4cb151b16a1c9a0b8c1))
+* On me shows deals you own or support, and a No fee filter ([#35](https://github.com/kthaisociety/lucid/issues/35)) ([7deaa55](https://github.com/kthaisociety/lucid/commit/7deaa5511529c7f75d1c9d2a8df1d99997fb25fb))
+* Reports charts confirmed and paid fees by semester ([#36](https://github.com/kthaisociety/lucid/issues/36)) ([d0d3bc9](https://github.com/kthaisociety/lucid/commit/d0d3bc91181fb74f6a3b9a295508dae70d8b0d6d))
+* Reports counts who supports a deal, not only who owns it ([#31](https://github.com/kthaisociety/lucid/issues/31)) ([57a8ae1](https://github.com/kthaisociety/lucid/commit/57a8ae1dea040b12a1c124320f5aa6966eaa178a))
+
 ## 1.0.0 (2026-10-20)
 
 
