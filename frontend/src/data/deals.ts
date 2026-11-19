@@ -13,8 +13,8 @@ export const STATUSES: { id: Status; label: string }[] = [
   { id: 'canceled', label: 'Canceled' },
 ]
 
-export type DealType = 'Event' | 'Partnership' | 'Job Post'
-export const DEAL_TYPES: DealType[] = ['Event', 'Partnership', 'Job Post']
+export type DealType = 'Event' | 'Partnership' | 'Job Post' | 'MoU'
+export const DEAL_TYPES: DealType[] = ['Event', 'Partnership', 'Job Post', 'MoU']
 
 export type EventType =
   | 'Workshop'

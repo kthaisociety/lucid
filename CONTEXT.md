@@ -9,7 +9,8 @@ Words as this project uses them.
   it lasts 7 days per browser ([ADR 0004](docs/adr/0004-sign-in-with-oidc.md)).
 - **Dev user**: for local work without an OIDC client, the user every request is signed in as
   ([PCR 0007](docs/pcr/0007-real-sign-in-dev-user-for-local-work.md)).
-- **Deal**: one piece of work with a company in one semester: an event, a partnership or a job post. A
+- **Deal**: one piece of work with a company in one semester: an event, a partnership, a job post or an MoU (a
+  memorandum of understanding Research/Dev reach with a company, which the business team joins). A
   company can have many deals (one per semester, or several at once). Replaces a row in the team's deal
   log spreadsheet.
 - **Status**: where a deal is: Lead → Discussing → Agreement → Signed → Finished, or Canceled (it ended

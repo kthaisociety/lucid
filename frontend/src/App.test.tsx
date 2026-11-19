@@ -915,6 +915,22 @@ test('the board filters to my deals or unassigned ones', async () => {
   expect(screen.queryByText('Granit Consulting')).not.toBeInTheDocument()
 })
 
+test('the board filters to MoUs, or to business-only deals without them', async () => {
+  await renderApp()
+  const drawer = open('Stadsnät Labs')
+  fireEvent.change(within(drawer).getByLabelText('Deal type'), { target: { value: 'MoU' } })
+  await waitFor(() => expect(patches().map((p) => p.body)).toEqual([{ dealType: 'MoU' }]))
+  fireEvent.keyDown(document, { key: 'Escape' })
+
+  fireEvent.click(screen.getByRole('button', { name: 'MoU' }))
+  expect(screen.getByText('Stadsnät Labs')).toBeInTheDocument()
+  expect(screen.queryByText('Granit Consulting')).not.toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Business only' }))
+  expect(screen.queryByText('Stadsnät Labs')).not.toBeInTheDocument()
+  expect(screen.getByText('Granit Consulting')).toBeInTheDocument()
+})
+
 test('Team lists the business team; admins add members and change roles', async () => {
   renderAt('/team')
 

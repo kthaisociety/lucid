@@ -39,14 +39,14 @@ export default function PipelineView({
   onMove,
 }: Props) {
   const [view, setView] = useState<'board' | 'list'>('board')
-  const [dealType, setDealType] = useState<DealType | 'all'>('all')
+  const [dealType, setDealType] = useState<DealType | 'all' | 'business'>('all')
   const [followUpOnly, setFollowUpOnly] = useState(false)
   const [owner, setOwner] = useState<'anyone' | 'mine' | 'unassigned'>('anyone')
   const [showCanceled, setShowCanceled] = useState(false)
 
   const visible = deals.filter(
     (deal) =>
-      (dealType === 'all' || deal.dealType === dealType) &&
+      (dealType === 'all' || deal.dealType === dealType || (dealType === 'business' && deal.dealType !== 'MoU')) &&
       (!followUpOnly || nudgeFor(deal) !== null) &&
       (owner === 'anyone' || (owner === 'mine' ? deal.owner?.id === meId : deal.owner === null)) &&
       (showCanceled || deal.status !== 'canceled'),
@@ -79,9 +79,9 @@ export default function PipelineView({
             </button>
           ))}
         </div>
-        {(['all', ...DEAL_TYPES] as const).map((t) => (
+        {(['all', 'business', ...DEAL_TYPES] as const).map((t) => (
           <button key={t} type="button" aria-pressed={dealType === t} onClick={() => setDealType(t)} className={chip(dealType === t)}>
-            {t === 'all' ? 'All types' : t}
+            {t === 'all' ? 'All types' : t === 'business' ? 'Business only' : t}
           </button>
         ))}
         <span className="mx-1.5 h-4 w-px bg-gray-200" />

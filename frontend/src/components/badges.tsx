@@ -6,6 +6,7 @@ const dealTypeStyles: Record<DealType, string> = {
   Event: 'bg-indigo-50 text-indigo-700 border-indigo-200',
   Partnership: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   'Job Post': 'bg-amber-50 text-amber-700 border-amber-200',
+  MoU: 'bg-sky-50 text-sky-700 border-sky-200',
 }
 
 export function DealTypeBadge({ dealType }: { dealType: DealType }) {

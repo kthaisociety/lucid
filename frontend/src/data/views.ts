@@ -1,6 +1,7 @@
 // Companies, contacts and semester reports, with each company's and contact's deals gathered from the
 // deal list.
 import {
+  DEAL_TYPES,
   STATUSES,
   compareSemesters,
   isConfirmed,
@@ -13,7 +14,6 @@ import {
   type Company,
   type Contact,
   type Deal,
-  type DealType,
   type Person,
   type Status,
 } from './deals'
@@ -143,7 +143,6 @@ export function reportFor(semester: string, all: Deal[], now = Date.now()): Seme
     const shared = [...people.values()].some((o) => o.id !== id && o.name === member.name)
     return shared ? `${member.name} (${member.email})` : member.name
   }
-  const types: DealType[] = ['Event', 'Partnership', 'Job Post']
 
   return {
     semester,
@@ -157,7 +156,7 @@ export function reportFor(semester: string, all: Deal[], now = Date.now()): Seme
     unpaidSEK: sumFees(won.filter(isUnpaid)),
     pipelineSEK: sumFees(deals.filter(isOpen).filter((d) => !isConfirmed(d))),
     byStatus: STATUSES.map((s) => ({ label: s.label, value: statusCounts.get(s.id as Status) ?? 0, status: s.id as Status })),
-    confirmedByType: types.map((t) => ({ label: t, value: sumFees(won.filter((d) => d.dealType === t)) })),
+    confirmedByType: DEAL_TYPES.map((t) => ({ label: t, value: sumFees(won.filter((d) => d.dealType === t)) })),
     byMember: [...load]
       .map(([id, n]) => ({ label: memberLabel(id), value: n.owns + n.supports, owns: n.owns }))
       .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label)),
