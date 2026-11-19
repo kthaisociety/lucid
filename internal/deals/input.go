@@ -13,7 +13,7 @@ import (
 // The values the database's CHECK constraints allow. Validating them here too turns a bad request into
 // a 400 with a reason, instead of a constraint error.
 var (
-	dealTypes       = []string{"Event", "Partnership", "Job Post"}
+	dealTypes       = []string{"Event", "Partnership", "Job Post", "MoU"}
 	statuses        = []string{"lead", "discussing", "agreement", "signed", "finished", "canceled"}
 	invoiceStatuses = []string{"not_sent", "waiting", "paid", "cancelled"}
 	eventTypes      = []string{"Workshop", "Hackathon", "After-Work", "Lunch Lecture", "Networking event",
