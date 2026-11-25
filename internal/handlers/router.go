@@ -62,6 +62,7 @@ func NewRouter(d Deps) *gin.Engine {
 	signedIn.DELETE("/deals/:id", deleteDeal(d.Deals))
 	signedIn.POST("/deals/:id/notes", addNote(d.Deals))
 	registerCompanies(signedIn, d.Deals)
+	registerGrowth(signedIn, d.Deals)
 	registerTeam(signedIn, d.Deals, d.Gmail, d.Fathom)
 	if d.Gmail != nil && d.Sessions != nil {
 		registerGmail(r, signedIn, d.GmailOIDC, d.Sessions, d.Gmail, d.GmailSync)
@@ -126,7 +127,7 @@ func me(store *deals.Store, canSignOut bool, conns *gmail.Connections, meetings 
 			}
 			recorder = map[bool]string{true: "connected", false: "not-connected"}[connected]
 		}
-		c.JSON(http.StatusOK, gin.H{"sub": user.Subject, "email": user.Email, "name": user.Name, "memberId": member.ID, "role": member.Role, "title": member.Title, "canSignOut": canSignOut, "gmail": mailbox, "fathom": recorder})
+		c.JSON(http.StatusOK, gin.H{"sub": user.Subject, "email": user.Email, "name": user.Name, "memberId": member.ID, "role": member.Role, "title": member.Title, "team": member.Team, "canSignOut": canSignOut, "gmail": mailbox, "fathom": recorder})
 	}
 }
 

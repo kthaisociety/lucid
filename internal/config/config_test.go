@@ -180,3 +180,25 @@ func TestGmailNeedsRealSignInAndAGoodKey(t *testing.T) {
 	t.Setenv("TOKEN_ENCRYPTION_KEY", "too-short")
 	assert.ErrorContains(t, Load().Validate(), "TOKEN_ENCRYPTION_KEY")
 }
+
+func TestMailNeedsCredentialsAPublicURLAndAFromAddress(t *testing.T) {
+	setRequired(t)
+	assert.Nil(t, Load().Mail())
+
+	t.Setenv("SMTP_HOST", "email-smtp.eu-north-1.amazonaws.com")
+	require.Error(t, Load().Validate())
+
+	t.Setenv("SMTP_USERNAME", "user")
+	t.Setenv("SMTP_PASSWORD", "secret")
+	t.Setenv("PUBLIC_URL", "http://127.0.0.1:8002")
+	t.Setenv("MAIL_FROM", "not an address")
+	require.Error(t, Load().Validate())
+
+	t.Setenv("MAIL_FROM", "Lucid <lucid@example.com>")
+	cfg := Load()
+	require.NoError(t, cfg.Validate())
+	m := cfg.Mail()
+	require.NotNil(t, m)
+	assert.Equal(t, "587", m.Port)
+	assert.Equal(t, "lucid@example.com", m.From.Address)
+}

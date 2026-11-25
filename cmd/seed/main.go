@@ -66,11 +66,32 @@ func seed(tx *gorm.DB) error {
 		{Email: "maja.holm@example.com", Name: "Maja Holm", Role: "board"},
 		{Email: "noah.ek@example.com", Name: "Noah Ek"},
 		{Email: "iris.wallin@example.com", Name: "Iris Wallin"},
+		// The growth team (docs/adr/0012).
+		{Email: "elsa.nyberg@example.com", Name: "Elsa Nyberg", Team: "growth"},
+		{Email: "leo.sandberg@example.com", Name: "Leo Sandberg", Team: "growth"},
 	} {
 		if err := tx.Create(&m).Error; err != nil {
 			return err
 		}
 		members[m.Name] = &m
+	}
+
+	// The growth board, with dates around today so some are overdue.
+	day := func(offset int) *deals.Date {
+		d := deals.Date(time.Now().AddDate(0, 0, offset).Format(time.DateOnly))
+		return &d
+	}
+	for _, t := range []deals.GrowthTask{
+		{Title: "Announce the autumn hackathon", TaskType: "event_post", AssigneeID: &members["Elsa Nyberg"].ID, PostDate: day(5), Channels: []string{"LinkedIn", "Instagram"}, Status: "draft"},
+		{Title: "Job post: summer interns", TaskType: "job_post", AssigneeID: &members["Leo Sandberg"].ID, PostDate: day(-2), Channels: []string{"LinkedIn"}, Status: "quality_check"},
+		{Title: "Welcome our new partner", TaskType: "partnership_post", AssigneeID: &members["Elsa Nyberg"].ID, PostDate: day(12), Channels: []string{"LinkedIn", "Newsletter"}, Status: "backlog"},
+		{Title: "Workshop recap series", TaskType: "content", AssigneeID: &members["Leo Sandberg"].ID, Channels: []string{"Instagram"}, Status: "scheduled", PostDate: day(1)},
+		{Title: "Lunch lecture recap", TaskType: "content", PostDate: day(-9), Channels: []string{"LinkedIn"}, Status: "posted"},
+		{Title: "Automate the weekly post report", TaskType: "project", Channels: []string{}, Status: "backlog"},
+	} {
+		if err := tx.Create(&t).Error; err != nil {
+			return err
+		}
 	}
 
 	companies := map[string]*deals.Company{}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import { Navigate, Route, Routes, useLocation } from 'react-router'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import {
   addNote,
   createCompany,
@@ -41,6 +41,7 @@ import { useTheme } from './theme'
 import CompaniesPage, { type CompanyActions } from './components/pages/CompaniesPage'
 import ContactsPage, { type ContactActions } from './components/pages/ContactsPage'
 import MyPage from './components/pages/MyPage'
+import GrowthPage from './components/pages/GrowthPage'
 import ReportsPage from './components/pages/ReportsPage'
 import SignInPage from './components/pages/SignInPage'
 import TeamPage, { type TeamActions } from './components/pages/TeamPage'
@@ -119,6 +120,7 @@ export default function App() {
   // Each page searches its own things (deals, companies, contacts), so a search ends with its page: one
   // typed on Contacts mustn't quietly hide cards on the board.
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const [searchedOn, setSearchedOn] = useState(pathname)
   if (pathname !== searchedOn) {
     setSearchedOn(pathname)
@@ -137,6 +139,13 @@ export default function App() {
       })
     return () => controller.abort()
   }, [])
+
+  // The growth team starts on its own board (docs/adr/0012), once, when the app opens on the pipeline.
+  const growthStart = user?.team === 'growth'
+  const openedOn = useRef(pathname)
+  useEffect(() => {
+    if (growthStart && openedOn.current === '/') navigate('/growth', { replace: true })
+  }, [growthStart, navigate])
 
   useEffect(() => {
     const onSignedOut = () => setSignedOut(true)
@@ -373,6 +382,10 @@ export default function App() {
       await addMember(member)
       await reload()
     },
+    setTeam: async (id, team) => {
+      await updateMember(id, { team })
+      await reload()
+    },
     setRole: async (id, role) => {
       await updateMember(id, { role })
       // Changing your own role changes what you can do here: Reports, and managing the team.
@@ -530,6 +543,7 @@ export default function App() {
                   />
                 }
               />
+              <Route path="growth" element={<GrowthPage members={members} meId={user?.memberId} />} />
               <Route path="companies" element={<CompaniesPage companies={companies} contacts={contacts} deals={all} query={query} onSelect={openDeal} actions={companyActions} contactActions={contactActions} />} />
               <Route path="contacts" element={<ContactsPage companies={companies} contacts={contacts} deals={all} query={query} onSelect={openDeal} actions={contactActions} />} />
               <Route

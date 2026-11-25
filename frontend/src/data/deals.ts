@@ -63,6 +63,13 @@ export const ROLES: { id: Role; label: string }[] = [
   { id: 'member', label: 'Member' },
 ]
 
+// Which team a member is on (docs/adr/0012): it decides who gets growth reminders, not what they may do.
+export type Team = 'business' | 'growth'
+export const TEAMS: { id: Team; label: string }[] = [
+  { id: 'business', label: 'Business' },
+  { id: 'growth', label: 'Growth' },
+]
+
 // Reports are for the board and admins (docs/adr/0003).
 export const canSeeReports = (role: Role | undefined) => role === 'admin' || role === 'board'
 
@@ -75,6 +82,7 @@ export type Person = {
   email: string
   role?: Role
   title?: string
+  team?: Team
   gmailConnected?: boolean
   fathomConnected?: boolean // there only where Connect Fathom is on (docs/adr/0008)
 }

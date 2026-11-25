@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { MemberInput } from '../../api'
-import { ROLES, isOpen, type Deal, type Person, type Role } from '../../data/deals'
+import { ROLES, TEAMS, isOpen, type Deal, type Person, type Role, type Team } from '../../data/deals'
 import { messageOf } from '../../format'
 import FormDialog, { DeleteButton, inputClass } from '../dialogs/FormDialog'
 import OwnerAvatar from '../OwnerAvatar'
@@ -9,6 +9,7 @@ import { AddButton, PageTitle, cell, headCell, table } from './common'
 export type TeamActions = {
   add: (member: MemberInput) => Promise<void>
   setRole: (id: string, role: Role) => Promise<void>
+  setTeam: (id: string, team: Team) => Promise<void>
   remove: (id: string) => Promise<void>
   // Makes the member an admin, and you board or member (docs/adr/0005).
   handOver: (id: string, stepDownTo: 'board' | 'member') => Promise<void>
@@ -38,6 +39,10 @@ export default function TeamPage({ members, deals, meId, isAdmin, actions }: Pro
     setError(null)
     actions.setRole(id, role).catch((err: unknown) => setError(messageOf(err)))
   }
+  const changeTeam = (id: string, team: Team) => {
+    setError(null)
+    actions.setTeam(id, team).catch((err: unknown) => setError(messageOf(err)))
+  }
 
   return (
     <div className="min-h-0 flex-1 overflow-auto px-6 pt-4 pb-6">
@@ -46,8 +51,8 @@ export default function TeamPage({ members, deals, meId, isAdmin, actions }: Pro
           title="Team"
           subtitle={
             isAdmin
-              ? 'The business team. Add people before they sign in, so leads can be assigned to them.'
-              : 'The business team. Admins add people and change roles.'
+              ? 'The business and growth teams. Add people before they sign in, so work can be assigned to them.'
+              : 'The business and growth teams. Admins add people and change teams and roles.'
           }
         />
         {isAdmin && (
@@ -71,7 +76,7 @@ export default function TeamPage({ members, deals, meId, isAdmin, actions }: Pro
       <table className={table}>
         <thead className="bg-gray-50 text-[11px] text-gray-500">
           <tr>
-            {['Name', 'Email', 'Role', ...(showGmail ? ['Gmail'] : []), ...(showFathom ? ['Fathom'] : []), 'Open deals', 'All deals', ''].map((h, i) => (
+            {['Name', 'Email', 'Team', 'Role', ...(showGmail ? ['Gmail'] : []), ...(showFathom ? ['Fathom'] : []), 'Open deals', 'All deals', ''].map((h, i) => (
               <th key={i} className={headCell}>
                 {h}
               </th>
@@ -95,6 +100,24 @@ export default function TeamPage({ members, deals, meId, isAdmin, actions }: Pro
                   </span>
                 </td>
                 <td className={`${cell} text-gray-500`}>{member.email}</td>
+                <td className={cell}>
+                  {isAdmin ? (
+                    <select
+                      aria-label={`Team of ${member.name}`}
+                      value={member.team ?? 'business'}
+                      onChange={(e) => changeTeam(member.id, e.target.value as Team)}
+                      className="rounded-md border border-gray-200 bg-surface px-2 py-1 text-xs"
+                    >
+                      {TEAMS.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    (TEAMS.find((t) => t.id === member.team)?.label ?? 'Business')
+                  )}
+                </td>
                 <td className={cell}>
                   {isAdmin ? (
                     <select
@@ -166,12 +189,13 @@ function AddMemberDialog({ onAdd, onClose }: { onAdd: (member: MemberInput) => P
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<Role>('member')
+  const [team, setTeam] = useState<Team>('business')
   const [title, setTitle] = useState('')
   return (
     <FormDialog
       title="Add member"
       submitLabel="Add member"
-      onSubmit={() => onAdd({ name: name.trim(), email: email.trim(), role, title: title.trim() })}
+      onSubmit={() => onAdd({ name: name.trim(), email: email.trim(), role, team, title: title.trim() })}
       onClose={onClose}
     >
       <label className="block">
@@ -191,6 +215,16 @@ function AddMemberDialog({ onAdd, onClose }: { onAdd: (member: MemberInput) => P
           onChange={(e) => setTitle(e.target.value)}
           className={inputClass}
         />
+      </label>
+      <label className="block">
+        Team
+        <select value={team} onChange={(e) => setTeam(e.target.value as Team)} className={inputClass}>
+          {TEAMS.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.label}
+            </option>
+          ))}
+        </select>
       </label>
       <label className="block">
         Role

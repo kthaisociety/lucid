@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"net/mail"
 	"os"
 	"slices"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/kthaisociety/lucid/internal/auth"
 	"github.com/kthaisociety/lucid/internal/fathom"
 	"github.com/kthaisociety/lucid/internal/gmail"
+	"github.com/kthaisociety/lucid/internal/growth"
 	"github.com/kthaisociety/lucid/internal/secretbox"
 )
 
@@ -50,6 +52,15 @@ type Config struct {
 	TokenEncryptionKey string
 	GmailClientID      string
 	GmailClientSecret  string
+
+	// Email (docs/adr/0012): an SMTP server taking STARTTLS, such as Amazon SES's on port 587, and the
+	// address Lucid sends from. Setting SMTP_HOST turns on the growth team's weekly reminders, which link
+	// to PUBLIC_URL. SMTP_PASSWORD is a secret.
+	SMTPHost     string
+	SMTPPort     string
+	SMTPUsername string
+	SMTPPassword string
+	MailFrom     string
 }
 
 func Load() *Config {
@@ -72,7 +83,22 @@ func Load() *Config {
 		TokenEncryptionKey: strings.TrimSpace(getEnv("TOKEN_ENCRYPTION_KEY", "")),
 		GmailClientID:      strings.TrimSpace(getEnv("GMAIL_CLIENT_ID", "")),
 		GmailClientSecret:  strings.TrimSpace(getEnv("GMAIL_CLIENT_SECRET", "")),
+
+		SMTPHost:     strings.TrimSpace(getEnv("SMTP_HOST", "")),
+		SMTPPort:     strings.TrimSpace(getEnv("SMTP_PORT", "587")),
+		SMTPUsername: strings.TrimSpace(getEnv("SMTP_USERNAME", "")),
+		SMTPPassword: strings.TrimSpace(getEnv("SMTP_PASSWORD", "")),
+		MailFrom:     strings.TrimSpace(getEnv("MAIL_FROM", "")),
 	}
+}
+
+// Mail is where email goes out (docs/adr/0012), or nil when SMTP_HOST is unset and Lucid sends none.
+func (c *Config) Mail() *growth.SMTPConfig {
+	if c.SMTPHost == "" {
+		return nil
+	}
+	from, _ := mail.ParseAddress(c.MailFrom) // checked by Validate
+	return &growth.SMTPConfig{Host: c.SMTPHost, Port: c.SMTPPort, Username: c.SMTPUsername, Password: c.SMTPPassword, From: from}
 }
 
 // Gmail is Connect Gmail's settings (docs/adr/0006), or nil when it's off: a Google client asking for
@@ -187,6 +213,14 @@ func (c *Config) Validate() error {
 		}
 		if c.Gmail() == nil {
 			return fmt.Errorf("Connect Gmail needs a Google client: set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET")
+		}
+	}
+	if c.SMTPHost != "" {
+		if c.SMTPUsername == "" || c.SMTPPassword == "" || c.PublicURL == "" {
+			return fmt.Errorf("email (SMTP_HOST) needs SMTP_USERNAME, SMTP_PASSWORD and PUBLIC_URL, for links back to Lucid")
+		}
+		if _, err := mail.ParseAddress(c.MailFrom); err != nil {
+			return fmt.Errorf("MAIL_FROM must be an email address, e.g. Lucid <lucid@kthais.com>: %v", err)
 		}
 	}
 	if c.OIDC() != nil && c.DevUserEmail != "" {

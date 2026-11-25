@@ -1,7 +1,8 @@
 // The frontend talks only to its own backend, on the same origin (docs/adr/0001). No URLs are baked
 // in at build time.
 
-import type { Activity, Company, Contact, Deal, DealType, Person, Role } from './data/deals'
+import type { Activity, Company, Contact, Deal, DealType, Person, Role, Team } from './data/deals'
+import type { GrowthTask, GrowthTaskInput } from './data/growth'
 
 export type User = {
   sub: string
@@ -12,6 +13,8 @@ export type User = {
   role?: Role
   // What they do on the team, in their own words ("Partnerships Lead"); not a permission.
   title?: string
+  // Business or growth (docs/adr/0012): which board they start on.
+  team?: Team
   // False for the dev user, who is always signed in (docs/pcr/0007).
   canSignOut?: boolean
   // Their mailbox (docs/adr/0006): off where Connect Gmail isn't set up; reconnect when Google no
@@ -150,11 +153,18 @@ export const deleteContact = (id: string) => call<void>('DELETE', `/api/contacts
 export const fetchMembers = (signal?: AbortSignal) => call<Person[]>('GET', '/api/members', undefined, signal)
 
 // Admins only (the API answers 403 otherwise).
-export type MemberInput = { email: string; name: string; role: Role; title?: string }
+export type MemberInput = { email: string; name: string; role: Role; title?: string; team?: Team }
 export const addMember = (member: MemberInput) => call<Person>('POST', '/api/members', member)
-export const updateMember = (id: string, patch: Partial<Pick<MemberInput, 'name' | 'role' | 'title'>>) =>
+export const updateMember = (id: string, patch: Partial<Pick<MemberInput, 'name' | 'role' | 'title' | 'team'>>) =>
   call<Person>('PATCH', `/api/members/${encodeURIComponent(id)}`, patch)
 export const removeMember = (id: string) => call<void>('DELETE', `/api/members/${encodeURIComponent(id)}`)
 // Makes the member an admin and you `stepDownTo` in one step (docs/adr/0005); answers with who you are now.
 export const handOverAdmin = (id: string, stepDownTo: 'board' | 'member') =>
   call<Person>('POST', `/api/members/${encodeURIComponent(id)}/hand-over-admin`, { stepDownTo })
+
+// The growth team's board (docs/adr/0012).
+export const fetchGrowthTasks = (signal?: AbortSignal) => call<GrowthTask[]>('GET', '/api/growth/tasks', undefined, signal)
+export const createGrowthTask = (task: GrowthTaskInput) => call<GrowthTask>('POST', '/api/growth/tasks', task)
+export const updateGrowthTask = (id: string, patch: GrowthTaskInput) =>
+  call<GrowthTask>('PATCH', `/api/growth/tasks/${encodeURIComponent(id)}`, patch)
+export const deleteGrowthTask = (id: string) => call<void>('DELETE', `/api/growth/tasks/${encodeURIComponent(id)}`)
