@@ -324,6 +324,8 @@ export default function App() {
           serverDeals.current.set(id, saved)
           applied([saved], request)
           replaceDeal(id, (deal) => edits.current.merge(saved, deal, takenAt))
+          // Reaching Agreement may have put a card on the growth board (docs/adr/0013).
+          if (saved.growthTask) void loadNewGrowthCard(saved.growthTask.id)
         }
       } catch (err) {
         edits.current.doneSaving(id, keys)
@@ -349,6 +351,16 @@ export default function App() {
       // The last save in line clears the deal's queue.
       if (saveQueue.current.get(id) === queued) saveQueue.current.delete(id)
     })
+  }
+
+  const loadNewGrowthCard = async (taskId: string) => {
+    if (data?.growthTasks.some((t) => t.id === taskId)) return
+    try {
+      const tasks = await fetchGrowthTasks()
+      setData((d) => d && { ...d, growthTasks: tasks })
+    } catch {
+      // The next refresh brings it.
+    }
   }
 
   // Resolves once the note is saved; the drawer keeps the text if it rejects.
@@ -571,7 +583,7 @@ export default function App() {
                   )
                 }
               />
-              <Route path="growth" element={<GrowthPage tasks={growthTasks} onTasks={setGrowthTasks} members={members} meId={user?.memberId} query={query} semester={semester} creating={addingTask} onCreated={() => setAddingTask(false)} />} />
+              <Route path="growth" element={<GrowthPage tasks={growthTasks} onTasks={setGrowthTasks} onOpenDeal={openDeal} members={members} meId={user?.memberId} query={query} semester={semester} creating={addingTask} onCreated={() => setAddingTask(false)} />} />
               <Route path="companies" element={<CompaniesPage companies={companies} contacts={contacts} deals={all} query={query} onSelect={openDeal} actions={companyActions} contactActions={contactActions} />} />
               <Route path="contacts" element={<ContactsPage companies={companies} contacts={contacts} deals={all} query={query} onSelect={openDeal} actions={contactActions} />} />
               <Route

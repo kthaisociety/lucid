@@ -91,3 +91,85 @@ func TestRemovingAMemberUnassignsTheirGrowthTasks(t *testing.T) {
 	assert.Equal(t, task.ID, list[0].ID)
 	assert.Nil(t, list[0].Assignee)
 }
+
+func patchDeal(t *testing.T, s *deals.Store, id, body string) deals.View {
+	t.Helper()
+	cols, err := deals.ParsePatch([]byte(body))
+	require.NoError(t, err)
+	d, err := s.Update(context.Background(), id, cols)
+	require.NoError(t, err)
+	return d
+}
+
+func TestADealThatInvolvesGrowthMakesOneCardAtAgreement(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	d := addLead(t, s, "Nordljus AB") // an event
+	assert.True(t, d.InvolvesGrowth, "events involve growth unless unticked")
+
+	d = patchDeal(t, s, d.ID, `{"status":"discussing","eventType":"Hackathon"}`)
+	assert.Nil(t, d.GrowthTask)
+	d = patchDeal(t, s, d.ID, `{"status":"agreement"}`)
+	require.NotNil(t, d.GrowthTask)
+	assert.Equal(t, "backlog", d.GrowthTask.Status)
+
+	tasks, err := s.ListGrowthTasks(ctx)
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	card := tasks[0]
+	assert.Equal(t, "Nordljus AB · Hackathon", card.Title)
+	assert.Equal(t, "event_post", card.TaskType)
+	assert.Equal(t, d.Semester, card.Semester)
+	assert.Equal(t, &deals.DealRef{ID: d.ID, Company: "Nordljus AB"}, card.SourceDeal)
+
+	// Moving on doesn't make another, nor does going back and forth; nor once the growth team deleted it.
+	patchDeal(t, s, d.ID, `{"status":"signed"}`)
+	patchDeal(t, s, d.ID, `{"status":"discussing"}`)
+	patchDeal(t, s, d.ID, `{"status":"agreement"}`)
+	tasks, err = s.ListGrowthTasks(ctx)
+	require.NoError(t, err)
+	assert.Len(t, tasks, 1)
+	require.NoError(t, s.DeleteGrowthTask(ctx, card.ID))
+	patchDeal(t, s, d.ID, `{"status":"finished"}`)
+	tasks, err = s.ListGrowthTasks(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, tasks)
+}
+
+func TestOnlyTickedDealsMakeCards(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	me, err := s.SignIn(ctx, alva)
+	require.NoError(t, err)
+	partnership, err := s.Create(ctx, deals.NewLead{OwnerID: &me.ID, Company: "Vinga Voice", DealType: "Partnership", Semester: "HT 2026"}, alva)
+	require.NoError(t, err)
+	assert.False(t, partnership.InvolvesGrowth, "partnerships only when ticked")
+	unticked := addLead(t, s, "Granit AB")
+	patchDeal(t, s, unticked.ID, `{"involvesGrowth":false}`)
+
+	patchDeal(t, s, partnership.ID, `{"status":"signed"}`)
+	patchDeal(t, s, unticked.ID, `{"status":"agreement"}`)
+	tasks, err := s.ListGrowthTasks(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, tasks)
+
+	// Ticking a deal already past Agreement makes its card then.
+	d := patchDeal(t, s, partnership.ID, `{"involvesGrowth":true}`)
+	require.NotNil(t, d.GrowthTask)
+	tasks, err = s.ListGrowthTasks(ctx)
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, "partnership_post", tasks[0].TaskType)
+	assert.Equal(t, "Vinga Voice · Partnership", tasks[0].Title)
+
+	// An MoU never involves growth, and a deal made an MoU stops.
+	mou := patchDeal(t, s, unticked.ID, `{"involvesGrowth":true,"dealType":"MoU"}`)
+	assert.False(t, mou.InvolvesGrowth)
+
+	// Deleting the deal keeps its card, without the link.
+	require.NoError(t, s.Delete(ctx, partnership.ID, alva))
+	tasks, err = s.ListGrowthTasks(ctx)
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	assert.Nil(t, tasks[0].SourceDeal)
+}

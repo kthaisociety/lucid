@@ -27,6 +27,7 @@ type Props = {
   // Every semester's tasks, which the app loads with the deals; onTasks changes them.
   tasks: GrowthTask[]
   onTasks: (change: (tasks: GrowthTask[]) => GrowthTask[]) => void
+  onOpenDeal: (id: string) => void // a card's business deal (docs/adr/0013)
   members: Person[]
   meId?: string
   query: string // the header's search
@@ -42,7 +43,7 @@ const matches = (task: GrowthTask, query: string) => {
 }
 
 // The growth team's board (docs/adr/0012): one semester's tasks, with the pipeline's filter bar.
-export default function GrowthPage({ tasks, onTasks, members, meId, query, semester, creating, onCreated }: Props) {
+export default function GrowthPage({ tasks, onTasks, onOpenDeal, members, meId, query, semester, creating, onCreated }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<GrowthTask | null>(null)
   const [view, setView] = useState<View>('board')
@@ -163,6 +164,10 @@ export default function GrowthPage({ tasks, onTasks, members, meId, query, semes
         <TaskDialog
           task={editing}
           semester={editing.semester}
+          onOpenDeal={(id) => {
+            setEditing(null)
+            onOpenDeal(id)
+          }}
           members={members}
           meId={meId}
           onSave={async (input) => {
@@ -255,6 +260,7 @@ function Column({
                 </span>
               )}
             </p>
+            {task.sourceDeal && <p className="mt-1 text-[11px] text-gray-500">From {task.sourceDeal.company}</p>}
             {task.channels.length > 0 && (
               <p className="mt-2 flex flex-wrap gap-1">
                 {task.channels.map((c) => (
@@ -324,6 +330,7 @@ function TaskTable({ tasks, today, onOpen }: { tasks: GrowthTask[]; today: strin
 
 function TaskDialog({
   task,
+  onOpenDeal,
   semester: initialSemester,
   members,
   meId,
@@ -332,6 +339,7 @@ function TaskDialog({
   onClose,
 }: {
   task: GrowthTask | null
+  onOpenDeal?: (id: string) => void
   semester: string
   members: Person[]
   meId?: string
@@ -361,6 +369,14 @@ function TaskDialog({
       deleteWhat="task"
       onClose={onClose}
     >
+      {task?.sourceDeal && (
+        <p className="text-xs font-normal">
+          From the business deal{' '}
+          <button type="button" onClick={() => onOpenDeal?.(task.sourceDeal!.id)} className="font-semibold text-indigo-700 hover:underline">
+            {task.sourceDeal.company}
+          </button>
+        </p>
+      )}
       <label className="block">
         Title
         <input required data-autofocus value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />

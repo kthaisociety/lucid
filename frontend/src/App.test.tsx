@@ -1153,6 +1153,7 @@ const growthTask = {
   channels: ['LinkedIn' as const],
   status: 'draft' as const,
   notes: '',
+  sourceDeal: null,
   statusChangedAt: '2020-01-01T10:00:00Z', // no movement since
   createdAt: new Date().toISOString(),
 }
@@ -1204,6 +1205,24 @@ test('a link to a page only one workspace has opens that workspace', async () =>
   renderAt('/growth')
   expect(await screen.findByRole('region', { name: 'Backlog' })).toBeInTheDocument()
   expect(within(screen.getByRole('group', { name: 'Workspace' })).getByRole('button', { name: 'Growth' })).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('a deal that involves growth puts a card on the growth board when it reaches Agreement', async () => {
+  const deal = api.deals.find((d) => d.status === 'discussing' && d.dealType === 'Event' && d.semester === thisSemester)!
+  deal.involvesGrowth = true
+  await renderApp()
+  fireEvent.click(screen.getAllByText(deal.company)[0])
+  const drawer = await screen.findByRole('dialog')
+  expect(within(drawer).getByLabelText('Involves Growth')).toBeChecked()
+  expect(within(drawer).getByText('A card goes to the Growth board at Agreement')).toBeInTheDocument()
+
+  fireEvent.change(within(drawer).getByLabelText('Status'), { target: { value: 'agreement' } })
+  expect(await within(drawer).findByText('On the Growth board: Backlog')).toBeInTheDocument()
+  fireEvent.click(within(drawer).getByRole('button', { name: /^Close/ }))
+
+  fireEvent.click(within(screen.getByRole('group', { name: 'Workspace' })).getByRole('button', { name: 'Growth' }))
+  const backlog = await screen.findByRole('region', { name: 'Backlog' })
+  expect(await within(backlog).findByText(`From ${deal.company}`)).toBeInTheDocument()
 })
 
 test('members don’t see Reports', async () => {

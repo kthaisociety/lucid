@@ -12,6 +12,9 @@ Words as this project uses them.
   partnership or job post), other content, or a project, with an assignee, a post date and channels.
   Backlog → Draft → Quality check → Scheduled → Posted, or Canceled. A task with the same status for 7 days
   has **no movement**.
+- **Involves Growth**: a deal the growth team posts about. When it reaches Agreement it makes a card in the
+  growth board's Backlog, linked to the deal; events and job posts involve growth unless unticked, MoUs
+  never ([ADR 0013](docs/adr/0013-deals-make-growth-cards.md)).
 - **Growth reminder**: the email each growth member gets on Mondays listing their open tasks, with those
   overdue or without movement.
 - **User**: the person signed in.

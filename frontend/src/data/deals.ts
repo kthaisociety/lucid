@@ -1,6 +1,8 @@
 // The deal model mirrors the business team's deal log (one row per deal, with status, next step, fee
 // and invoice). The API returns deals in this shape (internal/deals/model.go).
 
+import type { GrowthStatus } from './growth'
+
 export type Status = 'lead' | 'discussing' | 'agreement' | 'signed' | 'finished' | 'canceled'
 
 // Board columns, in pipeline order. Canceled deals are shown only on request.
@@ -130,6 +132,9 @@ export type Deal = {
   links: { drive?: string; contract?: string; writeUp?: string }
   rating: number | null // 1–5, after the deal is finished
   notes: string
+  // Whether a card goes to the growth board when the deal reaches Agreement, and that card (docs/adr/0013).
+  involvesGrowth: boolean
+  growthTask: { id: string; title: string; status: GrowthStatus } | null
   activities: Activity[]
   createdAt: string // when it was added, for ordering deals within a semester
 }

@@ -55,7 +55,7 @@ const note = (id: string, title: string, at: string, body = ''): Activity => ({
 
 // Deals as written below: company by name and contact by details. The companies and contacts tables are
 // worked out from them at the bottom, with stable ids.
-type RawDeal = Omit<Deal, 'companyId' | 'contact'> & { contact: Omit<Contact, 'id' | 'companyId'> | null }
+type RawDeal = Omit<Deal, 'companyId' | 'contact' | 'involvesGrowth' | 'growthTask'> & { contact: Omit<Contact, 'id' | 'companyId'> | null }
 
 const rawDeals: RawDeal[] = [
   {
@@ -383,5 +383,5 @@ export const fixtureDeals: Deal[] = rawDeals.map((raw) => {
       fixtureContacts.push(contact)
     }
   }
-  return { ...raw, companyId, contact }
+  return { involvesGrowth: false, growthTask: null, ...raw, companyId, contact }
 })

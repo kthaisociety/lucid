@@ -114,6 +114,8 @@ func seed(tx *gorm.DB) error {
 		if s.owner != "" {
 			d.OwnerID = &members[s.owner].ID
 		}
+		// As the migration set them (docs/adr/0013): events and job posts not yet agreed involve growth.
+		d.InvolvesGrowth = (d.DealType == "Event" || d.DealType == "Job Post") && (d.Status == "lead" || d.Status == "discussing")
 		for _, name := range s.support {
 			d.Support = append(d.Support, *members[name])
 		}

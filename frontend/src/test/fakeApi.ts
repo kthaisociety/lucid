@@ -186,6 +186,8 @@ export function stubApi(
         links: {},
         rating: null,
         notes: '',
+        involvesGrowth: body.dealType === 'Event' || body.dealType === 'Job Post',
+        growthTask: null,
         createdAt: new Date().toISOString(),
         activities: [
           { id: id('a'), type: 'note', source: 'manual', title: 'Added as a lead', timestamp: new Date().toISOString(), body: '' },
@@ -320,7 +322,28 @@ export function stubApi(
         if (next === undefined || (next && next.companyId !== deal.companyId)) return error(400, 'that contact isn’t at the company')
         deal.contact = next
       }
+      const agreed = (d: Deal) => d.involvesGrowth && ['agreement', 'signed', 'finished'].includes(d.status)
+      const before = agreed(deal)
       Object.assign(deal, fields)
+      // As the server does (docs/adr/0013): a deal that comes to involve growth at Agreement makes a card.
+      if (!before && agreed(deal) && !deal.growthTask) {
+        const task: GrowthTask = {
+          id: id('t'),
+          title: `${deal.company} · ${deal.dealType}`,
+          taskType: deal.dealType === 'Job Post' ? 'job_post' : deal.dealType === 'Partnership' ? 'partnership_post' : 'event_post',
+          semester: deal.semester,
+          assignee: null,
+          postDate: null,
+          channels: [],
+          status: 'backlog',
+          notes: '',
+          sourceDeal: { id: deal.id, company: deal.company },
+          statusChangedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        }
+        api.growthTasks.push(task)
+        deal.growthTask = { id: task.id, title: task.title, status: task.status }
+      }
       return json(deal)
     }
     if (deal && method === 'POST' && match[2]) {

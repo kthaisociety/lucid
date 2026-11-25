@@ -12,6 +12,7 @@ const task = (fields: Partial<GrowthTask>): GrowthTask => ({
   channels: [],
   status: 'backlog',
   notes: '',
+  sourceDeal: null,
   statusChangedAt: '2026-11-24T10:00:00Z',
   createdAt: '2026-11-01T10:00:00Z',
   ...fields,

@@ -22,16 +22,19 @@ var (
 )
 
 type GrowthTask struct {
-	ID              string `gorm:"type:uuid;default:gen_random_uuid()"`
-	Title           string
-	TaskType        string
-	Semester        string
-	AssigneeID      *string
-	Assignee        *Member `gorm:"foreignKey:AssigneeID"`
-	PostDate        *Date
-	Channels        []string `gorm:"serializer:json"`
-	Status          string   `gorm:"default:backlog"`
-	Notes           string
+	ID         string `gorm:"type:uuid;default:gen_random_uuid()"`
+	Title      string
+	TaskType   string
+	Semester   string
+	AssigneeID *string
+	Assignee   *Member `gorm:"foreignKey:AssigneeID"`
+	PostDate   *Date
+	Channels   []string `gorm:"serializer:json"`
+	Status     string   `gorm:"default:backlog"`
+	Notes      string
+	// The business deal that made it (docs/adr/0013); nil for a task added on the board.
+	SourceDealID    *string
+	SourceDeal      *Deal     `gorm:"foreignKey:SourceDealID"`
 	StatusChangedAt time.Time `gorm:"default:now()"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
@@ -47,6 +50,7 @@ type GrowthTaskView struct {
 	Channels        []string    `json:"channels"`
 	Status          string      `json:"status"`
 	Notes           string      `json:"notes"`
+	SourceDeal      *DealRef    `json:"sourceDeal"`
 	StatusChangedAt string      `json:"statusChangedAt"`
 	CreatedAt       string      `json:"createdAt"`
 }
@@ -71,13 +75,76 @@ func viewOfGrowthTask(t GrowthTask) GrowthTaskView {
 		a := viewOfMember(*t.Assignee)
 		v.Assignee = &a
 	}
+	if t.SourceDeal != nil && t.SourceDeal.Company != nil {
+		v.SourceDeal = &DealRef{ID: t.SourceDeal.ID, Company: t.SourceDeal.Company.Name}
+	}
 	return v
+}
+
+// DealRef is the deal a growth task was made from, and GrowthTaskRef the task a deal made (docs/adr/0013).
+type DealRef struct {
+	ID      string `json:"id"`
+	Company string `json:"company"`
+}
+
+type GrowthTaskRef struct {
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Status string `json:"status"`
+}
+
+// A deal at Agreement or later that involves growth gets a card (docs/adr/0013).
+func involvesGrowthNow(d Deal) bool {
+	return d.InvolvesGrowth && slices.Contains([]string{"agreement", "signed", "finished"}, d.Status)
+}
+
+// growthState reads, before an update that may make the deal's card (one changing its status or whether it
+// involves growth), whether the deal already qualified for one; nil when the update can't make a card.
+func growthState(tx *gorm.DB, id string, cols map[string]any) (*bool, error) {
+	_, status := cols["status"]
+	_, involves := cols["involves_growth"]
+	if !status && !involves {
+		return nil, nil
+	}
+	var d Deal
+	err := tx.Select("status", "involves_growth").Where("id = ?", id).Take(&d).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil // the update says it's not found
+	}
+	if err != nil {
+		return nil, err
+	}
+	qualified := involvesGrowthNow(d)
+	return &qualified, nil
+}
+
+// makeGrowthCard puts a card in the growth board's Backlog for a deal that has just come to qualify: it
+// reached Agreement, or was ticked at or after it. A deal makes one card at most; a card the growth team
+// deleted isn't made again by the deal moving on to Signed.
+func makeGrowthCard(tx *gorm.DB, id string, qualifiedBefore bool) error {
+	if qualifiedBefore {
+		return nil
+	}
+	var d Deal
+	if err := tx.Preload("Company").Where("id = ?", id).Take(&d).Error; err != nil {
+		return err
+	}
+	if !involvesGrowthNow(d) {
+		return nil
+	}
+	taskType, what := map[string]string{"Event": "event_post", "Job Post": "job_post", "Partnership": "partnership_post"}[d.DealType], d.DealType
+	if d.DealType == "Event" && d.EventType != "TBA" {
+		what = d.EventType
+	}
+	return tx.Exec(`INSERT INTO growth_tasks (title, task_type, semester, source_deal_id, channels, notes)
+		VALUES (?, ?, ?, ?, '[]', ?) ON CONFLICT (source_deal_id) DO NOTHING`,
+		d.Company.Name+" · "+what, taskType, d.Semester, d.ID, "Made from the business deal when it reached "+strings.ToUpper(d.Status[:1])+d.Status[1:]+".").Error
 }
 
 // ListGrowthTasks returns every growth task, oldest first: a team's tasks number in the hundreds at most.
 func (s *Store) ListGrowthTasks(ctx context.Context) ([]GrowthTaskView, error) {
 	var tasks []GrowthTask
-	if err := s.db.WithContext(ctx).Preload("Assignee").Order("created_at, id").Find(&tasks).Error; err != nil {
+	if err := s.db.WithContext(ctx).Preload("Assignee").Preload("SourceDeal.Company").Order("created_at, id").Find(&tasks).Error; err != nil {
 		return nil, err
 	}
 	views := make([]GrowthTaskView, 0, len(tasks))
@@ -169,7 +236,7 @@ func (s *Store) DeleteGrowthTask(ctx context.Context, id string) error {
 
 func getGrowthTask(tx *gorm.DB, id string) (GrowthTaskView, error) {
 	var t GrowthTask
-	if err := tx.Preload("Assignee").Where("id = ?", id).Take(&t).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+	if err := tx.Preload("Assignee").Preload("SourceDeal.Company").Where("id = ?", id).Take(&t).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return GrowthTaskView{}, ErrGrowthTaskNotFound
 	} else if err != nil {
 		return GrowthTaskView{}, err

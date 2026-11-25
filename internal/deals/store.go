@@ -39,7 +39,7 @@ func (s *Store) OnlyTeamMembers() *Store {
 
 // withEverything loads a deal's company, contact, owner, support and timeline (oldest first) along with it.
 func withEverything(db *gorm.DB) *gorm.DB {
-	return db.Preload("Company").Preload("Contact").Preload("Owner").Preload("Support").
+	return db.Preload("Company").Preload("Contact").Preload("Owner").Preload("Support").Preload("GrowthTask").
 		Preload("Activities", func(db *gorm.DB) *gorm.DB { return db.Order("occurred_at") })
 }
 
@@ -131,6 +131,8 @@ func (s *Store) Create(ctx context.Context, lead NewLead, by auth.User) (View, e
 			Status:    "lead",
 			OwnerID:   lead.OwnerID,
 			NextStep:  lead.NextStep,
+			// Events and job posts get a post; a partnership only if someone ticks it (docs/adr/0013).
+			InvolvesGrowth: lead.DealType == "Event" || lead.DealType == "Job Post",
 		}
 		if err := tx.Omit(clause.Associations).Create(&d).Error; isForeignKeyViolation(err) {
 			return invalid("that contact isn't at %s", company.Name) // moved there after the check above
@@ -174,6 +176,13 @@ func (s *Store) Update(ctx context.Context, id string, cols map[string]any) (Vie
 		if err := s.checkCompanyAndContact(tx, id, cols); err != nil {
 			return err
 		}
+		if cols["deal_type"] == "MoU" {
+			cols["involves_growth"] = false // an MoU never involves growth
+		}
+		before, err := growthState(tx, id, cols)
+		if err != nil {
+			return err
+		}
 		cols["updated_at"] = time.Now()
 		res := tx.Model(&Deal{}).Where("id = ?", id).Updates(cols)
 		if constraint := violated(res.Error); constraint == "deals_check" {
@@ -187,6 +196,11 @@ func (s *Store) Update(ctx context.Context, id string, cols map[string]any) (Vie
 		if res.RowsAffected == 0 {
 			return ErrNotFound
 		}
+		if before != nil {
+			if err := makeGrowthCard(tx, id, *before); err != nil {
+				return err
+			}
+		}
 		if setSupport {
 			if err := tx.Exec("DELETE FROM deal_support WHERE deal_id = ?", id).Error; err != nil {
 				return err
@@ -197,7 +211,6 @@ func (s *Store) Update(ctx context.Context, id string, cols map[string]any) (Vie
 				}
 			}
 		}
-		var err error
 		view, err = get(tx, id)
 		return err
 	})

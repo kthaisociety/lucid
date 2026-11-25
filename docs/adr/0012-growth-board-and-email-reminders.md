@@ -45,7 +45,6 @@ Mattermost for notifications. KTHAIS has an Amazon SES account that can send fro
 - A reminder is late, not lost, when the server is down on Monday morning: it goes when it's back that week.
 
 ## Later (the plan's step 2)
-- A business deal marked "involves growth" makes a Backlog card when it reaches Agreement, carrying the
-  deal's id. Which status triggers it, and for which partnerships, is the business team's call.
+- A business deal marked "involves growth" makes a Backlog card when it reaches Agreement: done in ADR 0013.
 - Growth posts on the calendar, with a warning for two posts on one day, and suggested post dates for events.
 - A weekly summary built from the week's status changes, which needs a history of them.

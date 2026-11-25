@@ -36,6 +36,7 @@ export type GrowthTask = {
   channels: Channel[]
   status: GrowthStatus
   notes: string
+  sourceDeal: { id: string; company: string } | null // the business deal that made it (docs/adr/0013)
   statusChangedAt: string
   createdAt: string
 }

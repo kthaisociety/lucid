@@ -118,6 +118,7 @@ export type DealPatch = Partial<
     | 'invoiceDue'
     | 'rating'
     | 'notes'
+    | 'involvesGrowth'
   >
 > & {
   companyId?: string

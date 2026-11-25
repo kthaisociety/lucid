@@ -22,6 +22,7 @@ import {
   type InvoiceStatus,
   type Status,
 } from '../../data/deals'
+import { GROWTH_STATUSES } from '../../data/growth'
 import { formatDate } from '../../format'
 import type { DealPatch } from '../../api'
 import { useDraft, useModal } from '../../hooks'
@@ -296,6 +297,23 @@ export default function DealDetailDrawer({
                 ))}
               </select>
             </Row>
+            {deal.dealType !== 'MoU' && (
+              <Row label="Growth">
+                <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                    <input type="checkbox" checked={deal.involvesGrowth} onChange={(e) => onChange({ involvesGrowth: e.target.checked })} />
+                    Involves Growth
+                  </label>
+                  <span className="text-[11px] text-gray-500">
+                    {deal.growthTask
+                      ? `On the Growth board: ${GROWTH_STATUSES.find((s) => s.id === deal.growthTask!.status)?.label}`
+                      : deal.involvesGrowth
+                        ? 'A card goes to the Growth board at Agreement'
+                        : ''}
+                  </span>
+                </span>
+              </Row>
+            )}
             <Row label="Owner">
               <span className="flex flex-wrap items-center gap-2">
                 {deal.owner && <OwnerAvatar owner={deal.owner} />}

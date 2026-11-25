@@ -20,6 +20,7 @@ const task = (fields: Partial<GrowthTask>): GrowthTask => ({
   channels: [],
   status: 'backlog',
   notes: '',
+  sourceDeal: null,
   statusChangedAt: '2020-01-01T10:00:00Z',
   createdAt: '2020-01-01T10:00:00Z',
   ...fields,
@@ -46,6 +47,7 @@ function Board({ initial, query = '', creating = false, onCreated = () => {} }: 
     <GrowthPage
       tasks={tasks}
       onTasks={(change) => setTasks(change)}
+      onOpenDeal={() => {}}
       members={[kim]}
       meId={kim.id}
       query={query}
