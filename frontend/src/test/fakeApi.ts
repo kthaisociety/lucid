@@ -3,7 +3,8 @@
 // rules: unique company names and contact emails, a deal's contact at its company, and no deleting a
 // company or contact that deals point at.
 import { vi } from 'vitest'
-import type { Activity, Company, Contact, Deal, Person, Role } from '../data/deals'
+import type { Activity, Company, Contact, Deal, Person, Role, Team } from '../data/deals'
+import type { GrowthTask } from '../data/growth'
 import { devMember, fixtureCompanies, fixtureContacts, fixtureDeals, fixtureMembers } from './fixtures'
 
 export const devUser = { sub: 'dev', email: 'dev@kthais.com', name: 'Dev User' }
@@ -15,6 +16,7 @@ export type FakeApi = {
   members: Person[]
   companies: Company[]
   contacts: Contact[]
+  growthTasks: GrowthTask[]
   requests: { method: string; path: string; body: unknown }[]
   // Make matching requests fail until cleared with `failures.length = 0`, or only the next one.
   failures: Failure[]
@@ -46,6 +48,7 @@ export function stubApi(
   options: {
     me?: () => Promise<Response>
     role?: Role
+    team?: Team
     firstSignIn?: boolean
     signedIn?: boolean
     gmail?: 'connected' | 'not-connected' | 'reconnect'
@@ -53,12 +56,13 @@ export function stubApi(
   } = {},
 ): FakeApi {
   const role = options.role ?? 'admin'
-  const team = structuredClone(fixtureMembers).map((m) => (m.id === devMember.id ? { ...m, role } : m))
+  const team = structuredClone(fixtureMembers).map((m) => (m.id === devMember.id ? { ...m, role, team: options.team ?? 'business' } : m))
   const api: FakeApi = {
     deals: structuredClone(fixtureDeals),
     members: options.firstSignIn ? team.filter((m) => m.id !== devMember.id) : team,
     companies: structuredClone(fixtureCompanies),
     contacts: structuredClone(fixtureContacts),
+    growthTasks: [],
     requests: [],
     failures: [],
     fail(method, path, status = 500, message = 'something went wrong') {
@@ -117,7 +121,7 @@ export function stubApi(
       const me = api.members.find((m) => m.id === devMember.id)!
       return options.me
         ? options.me()
-        : json({ ...devUser, memberId: me.id, role: me.role, title: me.title ?? '', canSignOut: !!options.signedIn, gmail, fathom })
+        : json({ ...devUser, memberId: me.id, role: me.role, team: me.team ?? 'business', title: me.title ?? '', canSignOut: !!options.signedIn, gmail, fathom })
     }
     if (method === 'PATCH' && path === '/api/me') {
       // Only the title: a role is an admin's to give, and the name comes from sign-in.
@@ -127,6 +131,7 @@ export function stubApi(
       return json(me)
     }
     if (method === 'GET' && path === '/api/members') return json(withGmail(api.members))
+    if (method === 'GET' && path === '/api/growth/tasks') return json(api.growthTasks)
     if (method === 'DELETE' && path === '/api/fathom') {
       fathom = 'not-connected'
       return new Response(null, { status: 204 })
@@ -181,6 +186,8 @@ export function stubApi(
         links: {},
         rating: null,
         notes: '',
+        involvesGrowth: body.dealType === 'Event' || body.dealType === 'Job Post',
+        growthTask: null,
         createdAt: new Date().toISOString(),
         activities: [
           { id: id('a'), type: 'note', source: 'manual', title: 'Added as a lead', timestamp: new Date().toISOString(), body: '' },
@@ -315,7 +322,28 @@ export function stubApi(
         if (next === undefined || (next && next.companyId !== deal.companyId)) return error(400, 'that contact isn’t at the company')
         deal.contact = next
       }
+      const agreed = (d: Deal) => d.involvesGrowth && ['agreement', 'signed', 'finished'].includes(d.status)
+      const before = agreed(deal)
       Object.assign(deal, fields)
+      // As the server does (docs/adr/0013): a deal that comes to involve growth at Agreement makes a card.
+      if (!before && agreed(deal) && !deal.growthTask) {
+        const task: GrowthTask = {
+          id: id('t'),
+          title: `${deal.company} · ${deal.dealType}`,
+          taskType: deal.dealType === 'Job Post' ? 'job_post' : deal.dealType === 'Partnership' ? 'partnership_post' : 'event_post',
+          semester: deal.semester,
+          assignee: null,
+          postDate: null,
+          channels: [],
+          status: 'backlog',
+          notes: '',
+          sourceDeal: { id: deal.id, company: deal.company },
+          statusChangedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        }
+        api.growthTasks.push(task)
+        deal.growthTask = { id: task.id, title: task.title, status: task.status }
+      }
       return json(deal)
     }
     if (deal && method === 'POST' && match[2]) {

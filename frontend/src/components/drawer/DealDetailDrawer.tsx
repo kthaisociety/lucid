@@ -6,11 +6,10 @@ import {
   EVENT_TYPES,
   INVOICE_STATUSES,
   STATUSES,
-  currentSemester,
   daysSince,
   lastTouchpoint,
   nudgeFor,
-  compareSemesters,
+  semesterOptions,
   statusLabel,
   type Activity,
   type Audience,
@@ -23,6 +22,7 @@ import {
   type InvoiceStatus,
   type Status,
 } from '../../data/deals'
+import { GROWTH_STATUSES } from '../../data/growth'
 import { formatDate } from '../../format'
 import type { DealPatch } from '../../api'
 import { useDraft, useModal } from '../../hooks'
@@ -297,6 +297,23 @@ export default function DealDetailDrawer({
                 ))}
               </select>
             </Row>
+            {deal.dealType !== 'MoU' && (
+              <Row label="Growth">
+                <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                    <input type="checkbox" checked={deal.involvesGrowth} onChange={(e) => onChange({ involvesGrowth: e.target.checked })} />
+                    Involves Growth
+                  </label>
+                  <span className="text-[11px] text-gray-500">
+                    {deal.growthTask
+                      ? `On the Growth board: ${GROWTH_STATUSES.find((s) => s.id === deal.growthTask!.status)?.label}`
+                      : deal.involvesGrowth
+                        ? 'A card goes to the Growth board at Agreement'
+                        : ''}
+                  </span>
+                </span>
+              </Row>
+            )}
             <Row label="Owner">
               <span className="flex flex-wrap items-center gap-2">
                 {deal.owner && <OwnerAvatar owner={deal.owner} />}
@@ -588,15 +605,6 @@ const LINKS = [
   { key: 'contract', label: 'Contract' },
   { key: 'writeUp', label: 'Write-up' },
 ] as const satisfies { key: keyof Deal['links']; label: string }[]
-
-// The semesters a deal can be moved to: last year's to two years ahead, newest first, and the deal's own.
-function semesterOptions(own: string, now = new Date()): string[] {
-  const year = now.getFullYear()
-  const options = [year + 2, year + 1, year, year - 1].flatMap((y) => [`HT ${y}`, `VT ${y}`])
-  if (!options.includes(own)) options.push(own)
-  if (!options.includes(currentSemester(now))) options.push(currentSemester(now))
-  return options.sort(compareSemesters)
-}
 
 // Only web addresses become links: anything else (a javascript: URL, say) is shown as text.
 const isWebAddress = (value: string) => /^https?:\/\/[^/\s]/i.test(value)

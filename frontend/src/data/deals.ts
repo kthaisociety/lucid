@@ -1,6 +1,8 @@
 // The deal model mirrors the business team's deal log (one row per deal, with status, next step, fee
 // and invoice). The API returns deals in this shape (internal/deals/model.go).
 
+import type { GrowthStatus } from './growth'
+
 export type Status = 'lead' | 'discussing' | 'agreement' | 'signed' | 'finished' | 'canceled'
 
 // Board columns, in pipeline order. Canceled deals are shown only on request.
@@ -63,6 +65,13 @@ export const ROLES: { id: Role; label: string }[] = [
   { id: 'member', label: 'Member' },
 ]
 
+// Which team a member is on (docs/adr/0012): it decides who gets growth reminders, not what they may do.
+export type Team = 'business' | 'growth'
+export const TEAMS: { id: Team; label: string }[] = [
+  { id: 'business', label: 'Business' },
+  { id: 'growth', label: 'Growth' },
+]
+
 // Reports are for the board and admins (docs/adr/0003).
 export const canSeeReports = (role: Role | undefined) => role === 'admin' || role === 'board'
 
@@ -75,6 +84,7 @@ export type Person = {
   email: string
   role?: Role
   title?: string
+  team?: Team
   gmailConnected?: boolean
   fathomConnected?: boolean // there only where Connect Fathom is on (docs/adr/0008)
 }
@@ -122,6 +132,9 @@ export type Deal = {
   links: { drive?: string; contract?: string; writeUp?: string }
   rating: number | null // 1–5, after the deal is finished
   notes: string
+  // Whether a card goes to the growth board when the deal reaches Agreement, and that card (docs/adr/0013).
+  involvesGrowth: boolean
+  growthTask: { id: string; title: string; status: GrowthStatus } | null
   activities: Activity[]
   createdAt: string // when it was added, for ordering deals within a semester
 }
@@ -252,4 +265,13 @@ export function compareSemesters(a: string, b: string): number {
 // The semester a date falls in: VT (spring) from January, HT (autumn) from July.
 export function currentSemester(now = new Date()): string {
   return `${now.getMonth() >= 6 ? 'HT' : 'VT'} ${now.getFullYear()}`
+}
+
+// The semesters a deal or growth task can be in: last year's to two years ahead, newest first, and its own.
+export function semesterOptions(own: string, now = new Date()): string[] {
+  const year = now.getFullYear()
+  const options = [year + 2, year + 1, year, year - 1].flatMap((y) => [`HT ${y}`, `VT ${y}`])
+  if (!options.includes(own)) options.push(own)
+  if (!options.includes(currentSemester(now))) options.push(currentSemester(now))
+  return options.sort(compareSemesters)
 }

@@ -35,6 +35,7 @@ type Member struct {
 	Name      string
 	Role      string `gorm:"default:member"`
 	Title     string // on the business team, e.g. "Partnerships Lead"; not a permission
+	Team      string `gorm:"default:business"` // business or growth (docs/adr/0012); not a permission
 	CreatedAt time.Time
 }
 
@@ -65,9 +66,12 @@ type Deal struct {
 	WriteUpURL    string
 	Rating        *int
 	Notes         string
-	Activities    []Activity
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	// Whether a card goes to the growth board when the deal reaches Agreement, and the card (docs/adr/0013).
+	InvolvesGrowth bool
+	GrowthTask     *GrowthTask `gorm:"foreignKey:SourceDealID"`
+	Activities     []Activity
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type Activity struct {
@@ -120,6 +124,7 @@ type MemberView struct {
 	Email string `json:"email"`
 	Role  string `json:"role"`
 	Title string `json:"title"`
+	Team  string `json:"team"`
 	// Whether they've connected their Gmail (docs/adr/0006); left out where Gmail is off.
 	GmailConnected *bool `json:"gmailConnected,omitempty"`
 	// Whether they've connected their Fathom (docs/adr/0008); left out where Connect Fathom is off.
@@ -160,30 +165,33 @@ type ActivityView struct {
 }
 
 type View struct {
-	ID            string         `json:"id"`
-	CompanyID     string         `json:"companyId"`
-	Company       string         `json:"company"` // the company's name
-	DealType      string         `json:"dealType"`
-	EventType     string         `json:"eventType"`
-	Audience      string         `json:"audience"`
-	Semester      string         `json:"semester"`
-	Status        string         `json:"status"`
-	StartDate     *Date          `json:"startDate"`
-	EndDate       *Date          `json:"endDate"`
-	Location      string         `json:"location"`
-	Owner         *MemberView    `json:"owner"`
-	Support       []MemberView   `json:"support"`
-	Contact       *ContactView   `json:"contact"`
-	NextStep      string         `json:"nextStep"`
-	NextStepDue   *Date          `json:"nextStepDue"`
-	FeeSEK        *int           `json:"feeSEK"`
-	InvoiceStatus *string        `json:"invoiceStatus"`
-	InvoiceDue    *Date          `json:"invoiceDue"`
-	Links         LinksView      `json:"links"`
-	Rating        *int           `json:"rating"`
-	Notes         string         `json:"notes"`
-	Activities    []ActivityView `json:"activities"`
-	CreatedAt     string         `json:"createdAt"`
+	ID             string       `json:"id"`
+	CompanyID      string       `json:"companyId"`
+	Company        string       `json:"company"` // the company's name
+	DealType       string       `json:"dealType"`
+	EventType      string       `json:"eventType"`
+	Audience       string       `json:"audience"`
+	Semester       string       `json:"semester"`
+	Status         string       `json:"status"`
+	StartDate      *Date        `json:"startDate"`
+	EndDate        *Date        `json:"endDate"`
+	Location       string       `json:"location"`
+	Owner          *MemberView  `json:"owner"`
+	Support        []MemberView `json:"support"`
+	Contact        *ContactView `json:"contact"`
+	NextStep       string       `json:"nextStep"`
+	NextStepDue    *Date        `json:"nextStepDue"`
+	FeeSEK         *int         `json:"feeSEK"`
+	InvoiceStatus  *string      `json:"invoiceStatus"`
+	InvoiceDue     *Date        `json:"invoiceDue"`
+	Links          LinksView    `json:"links"`
+	Rating         *int         `json:"rating"`
+	Notes          string       `json:"notes"`
+	InvolvesGrowth bool         `json:"involvesGrowth"`
+	// The growth board's card made from this deal, if any (docs/adr/0013).
+	GrowthTask *GrowthTaskRef `json:"growthTask"`
+	Activities []ActivityView `json:"activities"`
+	CreatedAt  string         `json:"createdAt"`
 }
 
 func viewOfCompany(c Company) CompanyView {
@@ -195,7 +203,7 @@ func viewOfContact(c Contact) ContactView {
 }
 
 func viewOfMember(m Member) MemberView {
-	return MemberView{ID: m.ID, Name: m.Name, Email: m.Email, Role: m.Role, Title: m.Title}
+	return MemberView{ID: m.ID, Name: m.Name, Email: m.Email, Role: m.Role, Title: m.Title, Team: m.Team}
 }
 
 func viewOfActivity(a Activity) ActivityView {
@@ -214,27 +222,28 @@ func viewOfActivity(a Activity) ActivityView {
 
 func viewOf(d Deal) View {
 	v := View{
-		ID:            d.ID,
-		CompanyID:     d.CompanyID,
-		DealType:      d.DealType,
-		EventType:     d.EventType,
-		Audience:      d.Audience,
-		Semester:      d.Semester,
-		Status:        d.Status,
-		StartDate:     d.StartDate,
-		EndDate:       d.EndDate,
-		Location:      d.Location,
-		Support:       []MemberView{},
-		NextStep:      d.NextStep,
-		NextStepDue:   d.NextStepDue,
-		FeeSEK:        d.FeeSEK,
-		InvoiceStatus: d.InvoiceStatus,
-		InvoiceDue:    d.InvoiceDue,
-		Links:         LinksView{Drive: d.DriveURL, Contract: d.ContractURL, WriteUp: d.WriteUpURL},
-		Rating:        d.Rating,
-		Notes:         d.Notes,
-		Activities:    []ActivityView{},
-		CreatedAt:     d.CreatedAt.UTC().Format(time.RFC3339Nano),
+		ID:             d.ID,
+		CompanyID:      d.CompanyID,
+		DealType:       d.DealType,
+		EventType:      d.EventType,
+		Audience:       d.Audience,
+		Semester:       d.Semester,
+		Status:         d.Status,
+		StartDate:      d.StartDate,
+		EndDate:        d.EndDate,
+		Location:       d.Location,
+		Support:        []MemberView{},
+		NextStep:       d.NextStep,
+		NextStepDue:    d.NextStepDue,
+		FeeSEK:         d.FeeSEK,
+		InvoiceStatus:  d.InvoiceStatus,
+		InvoiceDue:     d.InvoiceDue,
+		Links:          LinksView{Drive: d.DriveURL, Contract: d.ContractURL, WriteUp: d.WriteUpURL},
+		Rating:         d.Rating,
+		Notes:          d.Notes,
+		InvolvesGrowth: d.InvolvesGrowth,
+		Activities:     []ActivityView{},
+		CreatedAt:      d.CreatedAt.UTC().Format(time.RFC3339Nano),
 	}
 	if d.Owner != nil {
 		owner := viewOfMember(*d.Owner)
@@ -245,6 +254,9 @@ func viewOf(d Deal) View {
 	}
 	if d.Company != nil {
 		v.Company = d.Company.Name
+	}
+	if d.GrowthTask != nil {
+		v.GrowthTask = &GrowthTaskRef{ID: d.GrowthTask.ID, Title: d.GrowthTask.Title, Status: d.GrowthTask.Status}
 	}
 	if d.Contact != nil {
 		contact := viewOfContact(*d.Contact)

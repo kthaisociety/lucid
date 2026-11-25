@@ -320,6 +320,12 @@ func ParsePatch(body []byte) (map[string]any, error) {
 				return nil, invalid("invoiceStatus must be one of %s, or null", strings.Join(invoiceStatuses, ", "))
 			}
 			cols["invoice_status"] = s
+		case "involvesGrowth":
+			var b bool
+			if json.Unmarshal(value, &b) != nil {
+				return nil, invalid("involvesGrowth must be true or false")
+			}
+			cols["involves_growth"] = b
 		case "links":
 			if err := parseLinks(value, cols); err != nil {
 				return nil, err

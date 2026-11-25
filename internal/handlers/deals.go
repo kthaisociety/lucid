@@ -141,7 +141,7 @@ func fail(c *gin.Context, err error) {
 	case errors.As(err, &clash):
 		c.JSON(http.StatusConflict, gin.H{"error": clash.Error()})
 	case errors.Is(err, deals.ErrNotFound), errors.Is(err, deals.ErrCompanyNotFound), errors.Is(err, deals.ErrContactNotFound),
-		errors.Is(err, deals.ErrMemberNotFound):
+		errors.Is(err, deals.ErrMemberNotFound), errors.Is(err, deals.ErrGrowthTaskNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 	default:
 		log.Printf("%s %s: %v", c.Request.Method, c.Request.URL.Path, err)

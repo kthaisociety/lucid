@@ -18,6 +18,7 @@ import (
 var (
 	ErrMemberNotFound = errors.New("team member not found")
 	Roles             = []string{"admin", "board", "member"}
+	Teams             = []string{"business", "growth"} // docs/adr/0012
 )
 
 // ForbiddenError is a request the signed-in member's role doesn't allow; the API answers 403.
@@ -80,6 +81,7 @@ type MemberInput struct {
 	Name  string `json:"name"`
 	Role  string `json:"role"`
 	Title string `json:"title"`
+	Team  string `json:"team"` // business when empty
 }
 
 // maxTitle is the longest title a member can have, as the database allows.
@@ -99,6 +101,9 @@ func (in *MemberInput) validate() error {
 	if in.Role == "" {
 		in.Role = "member"
 	}
+	if in.Team == "" {
+		in.Team = "business"
+	}
 	switch {
 	case !strings.Contains(in.Email, "@"):
 		return invalid("a team member needs an email address")
@@ -106,6 +111,8 @@ func (in *MemberInput) validate() error {
 		return invalid("a team member needs a name")
 	case !slices.Contains(Roles, in.Role):
 		return invalid("role must be one of %s", strings.Join(Roles, ", "))
+	case !slices.Contains(Teams, in.Team):
+		return invalid("team must be one of %s", strings.Join(Teams, ", "))
 	}
 	if err := checkTitle(in.Title); err != nil {
 		return err
@@ -117,7 +124,7 @@ func (s *Store) AddMember(ctx context.Context, in MemberInput) (MemberView, erro
 	if err := in.validate(); err != nil {
 		return MemberView{}, err
 	}
-	m := Member{Email: in.Email, Name: in.Name, Role: in.Role, Title: in.Title}
+	m := Member{Email: in.Email, Name: in.Name, Role: in.Role, Title: in.Title, Team: in.Team}
 	err := s.db.WithContext(ctx).Create(&m).Error
 	if isUniqueViolation(err) {
 		return MemberView{}, conflict("%s is already on the team", in.Email)
@@ -125,9 +132,9 @@ func (s *Store) AddMember(ctx context.Context, in MemberInput) (MemberView, erro
 	return viewOfMember(m), err
 }
 
-// ParseMemberPatch reads an admin's PATCH to a team member: name, role or title.
+// ParseMemberPatch reads an admin's PATCH to a team member: name, role, title or team.
 func ParseMemberPatch(body []byte) (map[string]any, error) {
-	cols, err := textPatch(body, map[string]string{"name": "name", "role": "role", "title": "title"})
+	cols, err := textPatch(body, map[string]string{"name": "name", "role": "role", "title": "title", "team": "team"})
 	if err != nil {
 		return nil, err
 	}
@@ -141,6 +148,9 @@ func ParseMemberPatch(body []byte) (map[string]any, error) {
 	}
 	if role, ok := cols["role"].(string); ok && !slices.Contains(Roles, role) {
 		return nil, invalid("role must be one of %s", strings.Join(Roles, ", "))
+	}
+	if team, ok := cols["team"].(string); ok && !slices.Contains(Teams, team) {
+		return nil, invalid("team must be one of %s", strings.Join(Teams, ", "))
 	}
 	return cols, nil
 }
@@ -228,6 +238,10 @@ func (s *Store) RemoveMember(ctx context.Context, id string) error {
 			return conflict("%s owns or supports %d %s; reassign them first", m.Name, owned+supported, plural(owned+supported, "deal", "deals"))
 		}
 		if err := tx.Model(&Activity{}).Where("author_id = ?", id).Count(&authored).Error; err != nil {
+			return err
+		}
+		// Their growth tasks stay on the board, unassigned (docs/adr/0012).
+		if err := tx.Model(&GrowthTask{}).Where("assignee_id = ?", id).Update("assignee_id", nil).Error; err != nil {
 			return err
 		}
 		if authored > 0 {

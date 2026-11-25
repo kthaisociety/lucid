@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Lucid: the KTHAIS business team's CRM: the deal log as a board and a list. Sign-in is OIDC (Google
+Lucid: the KTHAIS business team's CRM: the deal log as a board and a list, and the growth team's board (ADR 0012). Sign-in is OIDC (Google
 until identity-service is live, ADR 0004), or the dev user for local work (PCR 0007). One repo, one image: a Go server (Gin, GORM, Postgres) serves
 the API under `/api` and an embedded Vite + React frontend everywhere else.
 
@@ -25,6 +25,9 @@ the API under `/api` and an embedded Vite + React frontend everywhere else.
 - `internal/deals`: the deal log: GORM models, validation and queries; `Record` puts synced emails and meetings on deals
 - `internal/fathom`: members' connected Fathom accounts, their webhooks, signature and payload (ADR 0008);
   `fathom/fathomtest` is a fake Fathom for tests
+- `internal/growth`: the growth team's weekly emails, the Monday reminder and Friday summary, through SES
+  (ADR 0012, 0015); its tasks live in
+  `internal/deals`
 - `internal/gmail`: members' connected Gmail mailboxes (ADR 0006); `internal/secretbox` seals their tokens
 - `internal/handlers`: `/api` routes, and the frontend for every other path
 - `internal/database`: Postgres connection and migrations (`migrations/*.sql`, applied at startup)

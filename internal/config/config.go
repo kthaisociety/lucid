@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"net/mail"
 	"os"
 	"slices"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/kthaisociety/lucid/internal/auth"
 	"github.com/kthaisociety/lucid/internal/fathom"
 	"github.com/kthaisociety/lucid/internal/gmail"
+	"github.com/kthaisociety/lucid/internal/growth"
 	"github.com/kthaisociety/lucid/internal/secretbox"
 )
 
@@ -50,6 +52,15 @@ type Config struct {
 	TokenEncryptionKey string
 	GmailClientID      string
 	GmailClientSecret  string
+
+	// Email through Amazon SES (docs/adr/0012): an IAM user's access key (the secret key is a secret), its
+	// region, the address Lucid sends from, and optionally where replies go. Setting SES_SENDER turns on the
+	// growth team's weekly emails, which link to PUBLIC_URL.
+	AWSAccessKeyID     string
+	AWSSecretAccessKey string
+	AWSRegion          string
+	SESSender          string
+	SESReplyTo         string
 }
 
 func Load() *Config {
@@ -72,7 +83,28 @@ func Load() *Config {
 		TokenEncryptionKey: strings.TrimSpace(getEnv("TOKEN_ENCRYPTION_KEY", "")),
 		GmailClientID:      strings.TrimSpace(getEnv("GMAIL_CLIENT_ID", "")),
 		GmailClientSecret:  strings.TrimSpace(getEnv("GMAIL_CLIENT_SECRET", "")),
+
+		AWSAccessKeyID:     strings.TrimSpace(getEnv("AWS_ACCESS_KEY_ID", "")),
+		AWSSecretAccessKey: strings.TrimSpace(getEnv("AWS_SECRET_ACCESS_KEY", "")),
+		AWSRegion:          strings.TrimSpace(getEnv("AWS_REGION", "")),
+		SESSender:          strings.TrimSpace(getEnv("SES_SENDER", "")),
+		SESReplyTo:         strings.TrimSpace(getEnv("SES_REPLY_TO", "")),
 	}
+}
+
+// Mail is where email goes out (docs/adr/0012), or nil when SES_SENDER is unset and Lucid sends none.
+func (c *Config) Mail() *growth.SMTPConfig {
+	if c.SESSender == "" {
+		return nil
+	}
+	// Both checked by Validate.
+	from, _ := mail.ParseAddress(c.SESSender)
+	var replyTo *mail.Address
+	if c.SESReplyTo != "" {
+		replyTo, _ = mail.ParseAddress(c.SESReplyTo)
+	}
+	cfg := growth.SES(c.AWSAccessKeyID, c.AWSSecretAccessKey, c.AWSRegion, from, replyTo)
+	return &cfg
 }
 
 // Gmail is Connect Gmail's settings (docs/adr/0006), or nil when it's off: a Google client asking for
@@ -187,6 +219,17 @@ func (c *Config) Validate() error {
 		}
 		if c.Gmail() == nil {
 			return fmt.Errorf("Connect Gmail needs a Google client: set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET")
+		}
+	}
+	if c.SESSender != "" {
+		if c.AWSAccessKeyID == "" || c.AWSSecretAccessKey == "" || c.AWSRegion == "" || c.PublicURL == "" {
+			return fmt.Errorf("email (SES_SENDER) needs AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION and PUBLIC_URL, for links back to Lucid")
+		}
+		if _, err := mail.ParseAddress(c.SESSender); err != nil {
+			return fmt.Errorf("SES_SENDER must be an email address, e.g. Lucid <lucid@kthais.com>: %v", err)
+		}
+		if _, err := mail.ParseAddress(c.SESReplyTo); c.SESReplyTo != "" && err != nil {
+			return fmt.Errorf("SES_REPLY_TO must be an email address: %v", err)
 		}
 	}
 	if c.OIDC() != nil && c.DevUserEmail != "" {

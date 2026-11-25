@@ -22,12 +22,16 @@ import (
 	"github.com/kthaisociety/lucid/internal/deals"
 	"github.com/kthaisociety/lucid/internal/fathom"
 	"github.com/kthaisociety/lucid/internal/gmail"
-	"github.com/kthaisociety/lucid/internal/secretbox"
+	"github.com/kthaisociety/lucid/internal/growth"
 	"github.com/kthaisociety/lucid/internal/handlers"
+	"github.com/kthaisociety/lucid/internal/secretbox"
 )
 
 // How often connected mailboxes are synced.
 const gmailSyncEvery = 5 * time.Minute
+
+// How often the growth team's weekly reminders are checked for being due (docs/adr/0012).
+const remindersEvery = 15 * time.Minute
 
 func main() {
 	// Best effort: in a container the variables are set directly and there's no .env.
@@ -94,6 +98,10 @@ func main() {
 		deps.GmailSync = gmail.NewSyncer(deps.Gmail, google.Client, deps.Deals)
 		go deps.GmailSync.Run(ctx, gmailSyncEvery)
 		log.Printf("Connect Gmail is on, syncing every %s; callback %s (docs/adr/0006)", gmailSyncEvery, g.RedirectURL)
+	}
+	if m := cfg.Mail(); m != nil {
+		go growth.NewReminders(db, growth.SMTP(*m), cfg.PublicURL).Run(ctx, remindersEvery)
+		log.Printf("email is on through %s as %s: growth reminders on Mondays from 10:00 and summaries on Fridays from 15:00 (docs/adr/0012, 0015)", m.Host, m.From)
 	}
 	if oidc != nil {
 		deps.OIDC, deps.Sessions = oidc, auth.NewSessions(db, cfg.PublicURL)
