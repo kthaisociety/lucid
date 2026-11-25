@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/kthaisociety/lucid/compare/v1.1.0...v1.2.0) (2026-11-25)
+
+
+### Features
+
+* a Calendar tab with events, next steps and invoices due ([#37](https://github.com/kthaisociety/lucid/issues/37)) ([22c10cd](https://github.com/kthaisociety/lucid/commit/22c10cd132b182a2f2aef34f6c6dbdf243e8ee51))
+
 ## [1.1.0](https://github.com/kthaisociety/lucid/compare/v1.0.0...v1.1.0) (2026-11-19)
 
 
