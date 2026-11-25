@@ -42,6 +42,7 @@ import { useTheme } from './theme'
 import CompaniesPage, { type CompanyActions } from './components/pages/CompaniesPage'
 import ContactsPage, { type ContactActions } from './components/pages/ContactsPage'
 import MyPage from './components/pages/MyPage'
+import CalendarPage from './components/pages/CalendarPage'
 import GrowthPage from './components/pages/GrowthPage'
 import GrowthReport from './components/pages/GrowthReport'
 import ReportsPage from './components/pages/ReportsPage'
@@ -584,6 +585,7 @@ export default function App() {
                 }
               />
               <Route path="growth" element={<GrowthPage tasks={growthTasks} onTasks={setGrowthTasks} onOpenDeal={openDeal} members={members} meId={user?.memberId} query={query} semester={semester} creating={addingTask} onCreated={() => setAddingTask(false)} />} />
+              <Route path="calendar" element={<CalendarPage deals={all} meId={user?.memberId} onSelect={openDeal} />} />
               <Route path="companies" element={<CompaniesPage companies={companies} contacts={contacts} deals={all} query={query} onSelect={openDeal} actions={companyActions} contactActions={contactActions} />} />
               <Route path="contacts" element={<ContactsPage companies={companies} contacts={contacts} deals={all} query={query} onSelect={openDeal} actions={contactActions} />} />
               <Route

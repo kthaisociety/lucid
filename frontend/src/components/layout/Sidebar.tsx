@@ -1,4 +1,4 @@
-import { BarChart3, Building2, KanbanSquare, LogOut, Mail, Megaphone, UserCog, UserRound, Users } from 'lucide-react'
+import { BarChart3, Building2, CalendarDays, KanbanSquare, LogOut, Mail, Megaphone, UserCog, UserRound, Users } from 'lucide-react'
 import { NavLink } from 'react-router'
 import type { User } from '../../api'
 import { canSeeReports, type Team } from '../../data/deals'
@@ -21,6 +21,7 @@ const pages: { label: string; icon: typeof KanbanSquare; path: string; boardOnly
   { label: 'Pipeline', icon: KanbanSquare, path: '/', team: 'business' },
   { label: 'Growth board', icon: Megaphone, path: '/growth', team: 'growth' },
   { label: 'My page', icon: UserRound, path: '/me' },
+  { label: 'Calendar', icon: CalendarDays, path: '/calendar' },
   { label: 'Companies', icon: Building2, path: '/companies', team: 'business' },
   { label: 'Contacts', icon: Users, path: '/contacts', team: 'business' },
   { label: 'Reports', icon: BarChart3, path: '/reports', boardOnly: true },
