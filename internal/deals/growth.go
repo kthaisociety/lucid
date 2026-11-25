@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // The growth team's board (docs/adr/0012): its tasks, which aren't deals.
@@ -136,9 +137,20 @@ func makeGrowthCard(tx *gorm.DB, id string, qualifiedBefore bool) error {
 	if d.DealType == "Event" && d.EventType != "TBA" {
 		what = d.EventType
 	}
-	return tx.Exec(`INSERT INTO growth_tasks (title, task_type, semester, source_deal_id, channels, notes)
-		VALUES (?, ?, ?, ?, '[]', ?) ON CONFLICT (source_deal_id) DO NOTHING`,
-		d.Company.Name+" · "+what, taskType, d.Semester, d.ID, "Made from the business deal when it reached "+strings.ToUpper(d.Status[:1])+d.Status[1:]+".").Error
+	var made []string
+	err := tx.Raw(`INSERT INTO growth_tasks (title, task_type, semester, source_deal_id, channels, notes)
+		VALUES (?, ?, ?, ?, '[]', ?) ON CONFLICT (source_deal_id) DO NOTHING RETURNING id`,
+		d.Company.Name+" · "+what, taskType, d.Semester, d.ID, "Made from the business deal when it reached "+strings.ToUpper(d.Status[:1])+d.Status[1:]+".").
+		Scan(&made).Error
+	if err != nil || len(made) == 0 {
+		return err
+	}
+	return recordStatus(tx, made[0], nil, "backlog")
+}
+
+// recordStatus adds a task's status change to its history (docs/adr/0015); from nil: the task was made.
+func recordStatus(tx *gorm.DB, taskID string, from *string, to string) error {
+	return tx.Exec("INSERT INTO growth_task_events (task_id, from_status, to_status) VALUES (?, ?, ?)", taskID, from, to).Error
 }
 
 // ListGrowthTasks returns every growth task, oldest first: a team's tasks number in the hundreds at most.
@@ -181,6 +193,13 @@ func (s *Store) CreateGrowthTask(ctx context.Context, cols map[string]any) (Grow
 		if err := tx.Model(&GrowthTask{}).Create(cols).Error; err != nil {
 			return err
 		}
+		status, _ := cols["status"].(string)
+		if status == "" {
+			status = "backlog"
+		}
+		if err := recordStatus(tx, id, nil, status); err != nil {
+			return err
+		}
 		var err error
 		view, err = getGrowthTask(tx, id)
 		return err
@@ -205,8 +224,14 @@ func (s *Store) UpdateGrowthTask(ctx context.Context, id string, cols map[string
 		}
 		now := time.Now()
 		cols["updated_at"] = now
-		if status, ok := cols["status"]; ok {
-			// Only a different status is movement.
+		var before string
+		status, moving := cols["status"].(string)
+		if moving {
+			// Only a different status is movement. The lock keeps two moves from both reading the old one.
+			err := tx.Model(&GrowthTask{}).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).Pluck("status", &before).Error
+			if err != nil {
+				return err
+			}
 			cols["status_changed_at"] = gorm.Expr("CASE WHEN status = ? THEN status_changed_at ELSE ? END", status, now)
 		}
 		res := tx.Model(&GrowthTask{}).Where("id = ?", id).Updates(cols)
@@ -215,6 +240,11 @@ func (s *Store) UpdateGrowthTask(ctx context.Context, id string, cols map[string
 		}
 		if res.RowsAffected == 0 {
 			return ErrGrowthTaskNotFound
+		}
+		if moving && status != before {
+			if err := recordStatus(tx, id, &before, status); err != nil {
+				return err
+			}
 		}
 		var err error
 		view, err = getGrowthTask(tx, id)

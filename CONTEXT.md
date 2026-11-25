@@ -17,6 +17,8 @@ Words as this project uses them.
   never ([ADR 0013](docs/adr/0013-deals-make-growth-cards.md)).
 - **Growth reminder**: the email each growth member gets on Mondays listing their open tasks, with those
   overdue or without movement.
+- **Growth summary**: the email the growth team gets on Fridays: the week's status changes (milestones
+  reached, moves, new cards) and what needs attention ([ADR 0015](docs/adr/0015-weekly-growth-summary.md)).
 - **User**: the person signed in.
 - **Sign-in**: with an @kthais.com Google account through OIDC, for people an admin has added to the team;
   it lasts 7 days per browser ([ADR 0004](docs/adr/0004-sign-in-with-oidc.md)).

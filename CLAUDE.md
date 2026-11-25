@@ -25,7 +25,8 @@ the API under `/api` and an embedded Vite + React frontend everywhere else.
 - `internal/deals`: the deal log: GORM models, validation and queries; `Record` puts synced emails and meetings on deals
 - `internal/fathom`: members' connected Fathom accounts, their webhooks, signature and payload (ADR 0008);
   `fathom/fathomtest` is a fake Fathom for tests
-- `internal/growth`: the growth team's weekly email reminders, sent over SMTP (ADR 0012); its tasks live in
+- `internal/growth`: the growth team's weekly emails, the Monday reminder and Friday summary, through SES
+  (ADR 0012, 0015); its tasks live in
   `internal/deals`
 - `internal/gmail`: members' connected Gmail mailboxes (ADR 0006); `internal/secretbox` seals their tokens
 - `internal/handlers`: `/api` routes, and the frontend for every other path

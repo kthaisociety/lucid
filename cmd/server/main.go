@@ -101,7 +101,7 @@ func main() {
 	}
 	if m := cfg.Mail(); m != nil {
 		go growth.NewReminders(db, growth.SMTP(*m), cfg.PublicURL).Run(ctx, remindersEvery)
-		log.Printf("email is on through %s as %s: growth reminders on Mondays from 10:00 (docs/adr/0012)", m.Host, m.From)
+		log.Printf("email is on through %s as %s: growth reminders on Mondays from 10:00 and summaries on Fridays from 15:00 (docs/adr/0012, 0015)", m.Host, m.From)
 	}
 	if oidc != nil {
 		deps.OIDC, deps.Sessions = oidc, auth.NewSessions(db, cfg.PublicURL)

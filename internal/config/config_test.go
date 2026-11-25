@@ -181,24 +181,28 @@ func TestGmailNeedsRealSignInAndAGoodKey(t *testing.T) {
 	assert.ErrorContains(t, Load().Validate(), "TOKEN_ENCRYPTION_KEY")
 }
 
-func TestMailNeedsCredentialsAPublicURLAndAFromAddress(t *testing.T) {
+func TestMailNeedsAnSESKeyAPublicURLAndASender(t *testing.T) {
 	setRequired(t)
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("SES_SENDER", "")
 	assert.Nil(t, Load().Mail())
 
-	t.Setenv("SMTP_HOST", "email-smtp.eu-north-1.amazonaws.com")
+	t.Setenv("SES_SENDER", "Lucid <lucid@example.com>")
 	require.Error(t, Load().Validate())
 
-	t.Setenv("SMTP_USERNAME", "user")
-	t.Setenv("SMTP_PASSWORD", "secret")
+	t.Setenv("AWS_ACCESS_KEY_ID", "AKIAEXAMPLE")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "secret")
+	t.Setenv("AWS_REGION", "eu-north-1")
 	t.Setenv("PUBLIC_URL", "http://127.0.0.1:8002")
-	t.Setenv("MAIL_FROM", "not an address")
+	t.Setenv("SES_REPLY_TO", "not an address")
 	require.Error(t, Load().Validate())
 
-	t.Setenv("MAIL_FROM", "Lucid <lucid@example.com>")
+	t.Setenv("SES_REPLY_TO", "growth@example.com")
 	cfg := Load()
 	require.NoError(t, cfg.Validate())
 	m := cfg.Mail()
 	require.NotNil(t, m)
-	assert.Equal(t, "587", m.Port)
+	assert.Equal(t, "email-smtp.eu-north-1.amazonaws.com", m.Host)
 	assert.Equal(t, "lucid@example.com", m.From.Address)
+	assert.Equal(t, "growth@example.com", m.ReplyTo.Address)
 }

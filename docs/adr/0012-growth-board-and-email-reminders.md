@@ -31,20 +31,19 @@ still proposed. KTHAIS has an Amazon SES account that can send from a kthais.com
 - **Reports are each workspace's**, for the semester picked. The board (ADR 0003) sees Reports, and the
   workspace decides which: the deal log's, or the growth board's (open, overdue, without movement, posted,
   by status, channel and member). As before, this is the UI only: every member can read both boards.
-- **Email goes through SES's SMTP interface** with Go's standard library, so no AWS SDK. `SMTP_HOST`,
-  `SMTP_USERNAME`, `SMTP_PASSWORD` (a secret, in OpenBao like the others) and `MAIL_FROM` turn reminders
-  on; without them they're off.
+- **Email goes through SES's SMTP interface** with Go's standard library, so no AWS SDK. Its settings are in
+  ADR 0015 (an IAM access key, a region and a sender); without them it's off.
 - **Replicas send once.** Each reminder is claimed per member and week in Postgres before it's sent; a
   failed send gives the claim back so the next try, 15 minutes later, sends it.
 - **Staging** sends reminders only if it's given SMTP settings, and its members are testers (ADR 0007).
 
 ## Consequences
-- The growth team can use Lucid at once, without waiting on ADR 0009. Its settings are the ones ADR 0009's
-  email proposal names, so the business digest can send through the same `growth.SMTP` when it's built.
-- Lucid holds one more secret, which can only send mail as `MAIL_FROM`.
+- The growth team can use Lucid at once, without waiting on ADR 0009. The business digest can send through
+  the same `growth.SMTP` and SES settings when it's built.
+- Lucid holds one more secret, an IAM key that should only be allowed to send mail (ADR 0015).
 - A reminder is late, not lost, when the server is down on Monday morning: it goes when it's back that week.
 
 ## Later (the plan's step 2)
 - A business deal marked "involves growth" makes a Backlog card when it reaches Agreement: done in ADR 0013.
 - Growth posts on the calendar, with a warning for two posts on one day, and suggested post dates for events.
-- A weekly summary built from the week's status changes, which needs a history of them.
+- A weekly summary built from the week's status changes: done in ADR 0015.
