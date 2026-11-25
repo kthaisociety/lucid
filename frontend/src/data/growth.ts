@@ -89,3 +89,25 @@ export function growthReportFor(tasks: GrowthTask[], today: string, now = Date.n
     needsFollowUp: open.filter((t) => isOverdue(t, today) || hasNoMovement(t, now)),
   }
 }
+
+// Posts on the calendar by their post date, canceled ones left out (docs/adr/0014).
+export function postsByDay(tasks: GrowthTask[]): Map<string, GrowthTask[]> {
+  const days = new Map<string, GrowthTask[]>()
+  for (const t of tasks) {
+    if (t.postDate && t.status !== 'canceled') days.set(t.postDate, [...(days.get(t.postDate) ?? []), t])
+  }
+  return days
+}
+
+// Post dates to suggest for an event (docs/adr/0014): the announcement three weeks before, a reminder one
+// week before, a last call two days before, and the recap two days after it ends. Only dates still ahead.
+// shortcut: registration close isn't recorded on deals, so the reminder stands in for it; add it when deals have one.
+export function suggestedPostDates(startDate: string, endDate: string | null, today: string): { label: string; date: string }[] {
+  const shift = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * DAY).toISOString().slice(0, 10)
+  return [
+    { label: 'Announcement', date: shift(startDate, -21) },
+    { label: 'Reminder', date: shift(startDate, -7) },
+    { label: 'Last call', date: shift(startDate, -2) },
+    { label: 'Recap', date: shift(endDate ?? startDate, 2) },
+  ].filter((s) => s.date >= today)
+}

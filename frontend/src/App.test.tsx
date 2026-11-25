@@ -963,6 +963,31 @@ test('Calendar shows what falls on each day, opens a deal, and narrows to mine',
   expect(within(screen.getByRole('region', { name: formatDate(today()) })).queryByRole('button', { name: 'Vinga Voice' })).not.toBeInTheDocument()
 })
 
+test('the growth calendar shows posts, flags two on one day, and opens a card; Both teams adds the deals', async () => {
+  api = stubApi({ team: 'growth' })
+  const post = (id: string, title: string) => ({
+    ...growthTask,
+    id,
+    title,
+    status: 'scheduled' as const,
+    postDate: today(),
+    statusChangedAt: new Date().toISOString(),
+  })
+  api.growthTasks = [post('t-1', 'Hackathon teaser'), post('t-2', 'Job post for Granit')]
+  renderAt('/calendar')
+
+  const day = await screen.findByRole('region', { name: formatDate(today()) })
+  expect(within(day).getByRole('note')).toHaveTextContent('2 posts')
+  expect(within(day).queryByRole('button', { name: 'Vinga Voice' })).not.toBeInTheDocument() // a deal's next step
+
+  fireEvent.click(screen.getByRole('button', { name: 'Both teams' }))
+  expect(within(screen.getByRole('region', { name: formatDate(today()) })).getByRole('button', { name: 'Vinga Voice' })).toBeInTheDocument()
+
+  fireEvent.click(within(screen.getByRole('region', { name: formatDate(today()) })).getByRole('button', { name: /Hackathon teaser/ }))
+  const dialog = await screen.findByRole('dialog', { name: 'Edit task' })
+  expect(within(dialog).getByLabelText('Title')).toHaveValue('Hackathon teaser')
+})
+
 test('Team lists the business team; admins add members and change roles', async () => {
   renderAt('/team')
 

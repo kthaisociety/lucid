@@ -46,5 +46,5 @@ still proposed. KTHAIS has an Amazon SES account that can send from a kthais.com
 
 ## Later (the plan's step 2)
 - A business deal marked "involves growth" makes a Backlog card when it reaches Agreement: done in ADR 0013.
-- Growth posts on the calendar, with a warning for two posts on one day, and suggested post dates for events.
+- Growth posts on the calendar, with a warning for two posts on one day, and suggested post dates for events: done in ADR 0014.
 - A weekly summary built from the week's status changes, which needs a history of them.

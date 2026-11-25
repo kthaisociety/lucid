@@ -1,12 +1,13 @@
-import { useState, type DragEvent } from 'react'
+import { useEffect, useState, type DragEvent } from 'react'
 import { createGrowthTask, deleteGrowthTask, updateGrowthTask } from '../../api'
-import { semesterOptions, today, type Person } from '../../data/deals'
+import { semesterOptions, today, type Deal, type Person } from '../../data/deals'
 import {
   CHANNELS,
   GROWTH_STATUSES,
   GROWTH_TASK_TYPES,
   hasNoMovement,
   isOverdue,
+  suggestedPostDates,
   typeLabel,
   type GrowthStatus,
   type GrowthTask,
@@ -28,6 +29,10 @@ type Props = {
   tasks: GrowthTask[]
   onTasks: (change: (tasks: GrowthTask[]) => GrowthTask[]) => void
   onOpenDeal: (id: string) => void // a card's business deal (docs/adr/0013)
+  deals: Deal[] // for the dates of a card's event, to suggest post dates (docs/adr/0014)
+  // A card to open at once, picked on the calendar; onOpenedTask once it's open.
+  openTaskId?: string | null
+  onOpenedTask?: () => void
   members: Person[]
   meId?: string
   query: string // the header's search
@@ -43,9 +48,12 @@ const matches = (task: GrowthTask, query: string) => {
 }
 
 // The growth team's board (docs/adr/0012): one semester's tasks, with the pipeline's filter bar.
-export default function GrowthPage({ tasks, onTasks, onOpenDeal, members, meId, query, semester, creating, onCreated }: Props) {
+export default function GrowthPage({ tasks, onTasks, onOpenDeal, deals, openTaskId, onOpenedTask, members, meId, query, semester, creating, onCreated }: Props) {
   const [error, setError] = useState<string | null>(null)
-  const [editing, setEditing] = useState<GrowthTask | null>(null)
+  const [editing, setEditing] = useState<GrowthTask | null>(() => tasks.find((t) => t.id === openTaskId) ?? null)
+  useEffect(() => {
+    if (openTaskId) onOpenedTask?.()
+  }, [openTaskId, onOpenedTask])
   const [view, setView] = useState<View>('board')
   const [taskType, setTaskType] = useState<GrowthTaskType | 'all'>('all')
   const [assignee, setAssignee] = useState<'anyone' | 'mine' | 'unassigned'>('anyone')
@@ -163,6 +171,7 @@ export default function GrowthPage({ tasks, onTasks, onOpenDeal, members, meId, 
       {editing && (
         <TaskDialog
           task={editing}
+          event={deals.find((d) => d.id === editing.sourceDeal?.id && d.dealType === 'Event' && d.startDate)}
           semester={editing.semester}
           onOpenDeal={(id) => {
             setEditing(null)
@@ -330,6 +339,7 @@ function TaskTable({ tasks, today, onOpen }: { tasks: GrowthTask[]; today: strin
 
 function TaskDialog({
   task,
+  event,
   onOpenDeal,
   semester: initialSemester,
   members,
@@ -339,6 +349,7 @@ function TaskDialog({
   onClose,
 }: {
   task: GrowthTask | null
+  event?: Deal // the event the card is about, when it's an event's
   onOpenDeal?: (id: string) => void
   semester: string
   members: Person[]
@@ -426,6 +437,26 @@ function TaskDialog({
           <input type="date" value={postDate} onChange={(e) => setPostDate(e.target.value)} className={inputClass} />
         </label>
       </div>
+      {event?.startDate && suggestedPostDates(event.startDate, event.endDate, today()).length > 0 && (
+        <div>
+          <p>Suggested post dates, from the event on {formatDate(event.startDate)}</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {suggestedPostDates(event.startDate, event.endDate, today()).map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                aria-pressed={postDate === s.date}
+                onClick={() => setPostDate(s.date)}
+                className={`rounded-md border px-2 py-0.5 text-[11px] font-medium ${
+                  postDate === s.date ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {s.label} · {formatDate(s.date)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <fieldset>
         <legend>Channels</legend>
         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">

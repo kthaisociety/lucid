@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
+import type { Deal } from '../../data/deals'
 import type { GrowthTask } from '../../data/growth'
 import GrowthPage from './GrowthPage'
 
@@ -48,6 +49,7 @@ function Board({ initial, query = '', creating = false, onCreated = () => {} }: 
       tasks={tasks}
       onTasks={(change) => setTasks(change)}
       onOpenDeal={() => {}}
+      deals={[]}
       members={[kim]}
       meId={kim.id}
       query={query}
@@ -120,4 +122,30 @@ test('the filters, search and list work as on the pipeline', () => {
   const rows = screen.getAllByRole('row')
   expect(rows).toHaveLength(2)
   expect(within(rows[1]).getByText('Draft')).toBeTruthy()
+})
+
+test('a card made from an event suggests post dates around it', () => {
+  const start = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const event = { id: 'd-1', dealType: 'Event', startDate: start, endDate: null } as unknown as Deal
+  render(
+    <GrowthPage
+      tasks={[task({ sourceDeal: { id: 'd-1', company: 'Nordljus AB' } })]}
+      onTasks={() => {}}
+      onOpenDeal={() => {}}
+      deals={[event]}
+      openTaskId="t-1"
+      members={[kim]}
+      meId={kim.id}
+      query=""
+      semester="HT 2026"
+      creating={false}
+      onCreated={() => {}}
+    />,
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Edit task' })
+  expect(within(dialog).getByText('Nordljus AB')).toBeTruthy()
+  fireEvent.click(within(dialog).getByRole('button', { name: /^Announcement/ }))
+  expect((within(dialog).getByLabelText('Post date') as HTMLInputElement).value).toBe(
+    new Date(Date.parse(`${start}T00:00:00Z`) - 21 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+  )
 })

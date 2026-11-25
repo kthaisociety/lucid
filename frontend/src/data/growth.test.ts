@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { growthReportFor, type GrowthTask } from './growth'
+import { growthReportFor, postsByDay, suggestedPostDates, type GrowthTask } from './growth'
 
 const now = new Date('2026-11-25T12:00:00Z').getTime()
 const task = (fields: Partial<GrowthTask>): GrowthTask => ({
@@ -43,4 +43,22 @@ test('the growth report counts open, overdue, stale and posted tasks', () => {
     { label: 'Unassigned', value: 1 },
   ])
   expect(report.needsFollowUp).toEqual([overdue, stale])
+})
+
+test('posts go on their post date; canceled ones and undated tasks stay off the calendar', () => {
+  const a = task({ id: 'a', postDate: '2026-12-01' })
+  const b = task({ id: 'b', postDate: '2026-12-01', status: 'posted' })
+  const days = postsByDay([a, b, task({ id: 'c', postDate: '2026-12-01', status: 'canceled' }), task({ id: 'd' })])
+  expect([...days.keys()]).toEqual(['2026-12-01'])
+  expect(days.get('2026-12-01')).toEqual([a, b])
+})
+
+test('post dates are suggested around an event, only those still ahead', () => {
+  expect(suggestedPostDates('2026-12-20', '2026-12-21', '2026-11-25')).toEqual([
+    { label: 'Announcement', date: '2026-11-29' },
+    { label: 'Reminder', date: '2026-12-13' },
+    { label: 'Last call', date: '2026-12-18' },
+    { label: 'Recap', date: '2026-12-23' },
+  ])
+  expect(suggestedPostDates('2026-12-01', null, '2026-11-25').map((s) => s.label)).toEqual(['Last call', 'Recap'])
 })
