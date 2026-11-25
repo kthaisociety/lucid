@@ -3,6 +3,7 @@ import { KanbanSquare, List, Plus } from 'lucide-react'
 import { DEAL_TYPES, nudgeFor, type Deal, type DealType, type Status } from '../data/deals'
 import KanbanBoard from './kanban/KanbanBoard'
 import DealTable from './list/DealTable'
+import { chip } from './chip'
 
 type Props = {
   deals: Deal[] // the semester's, matching the search
@@ -19,11 +20,6 @@ type Props = {
   onSelect: (id: string) => void
   onMove: (id: string, status: Status) => void
 }
-
-const chip = (active: boolean) =>
-  `flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition ${
-    active ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-surface text-gray-600 hover:bg-gray-50'
-  }`
 
 export default function PipelineView({
   deals,

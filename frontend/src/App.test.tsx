@@ -2,6 +2,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
+import { today } from './data/deals'
+import { formatDate } from './format'
 import { stubApi, type FakeApi } from './test/fakeApi'
 import { devMember, earlierSemester, lastSemester, thisSemester } from './test/fixtures'
 
@@ -947,6 +949,18 @@ test('the board filters to MoUs, or to business-only deals without them', async 
   fireEvent.click(screen.getByRole('button', { name: 'Business only' }))
   expect(screen.queryByText('Stadsnät Labs')).not.toBeInTheDocument()
   expect(screen.getByText('Granit Consulting')).toBeInTheDocument()
+})
+
+test('Calendar shows what falls on each day, opens a deal, and narrows to mine', async () => {
+  renderAt('/calendar')
+
+  const day = await screen.findByRole('region', { name: formatDate(today()) })
+  fireEvent.click(within(day).getByRole('button', { name: 'Vinga Voice' })) // its next step is due today
+  expect(screen.getByRole('dialog', { name: 'Vinga Voice' })).toBeInTheDocument()
+  fireEvent.keyDown(document, { key: 'Escape' })
+
+  fireEvent.click(screen.getByRole('button', { name: 'On me' })) // Iris owns it, not Dev
+  expect(within(screen.getByRole('region', { name: formatDate(today()) })).queryByRole('button', { name: 'Vinga Voice' })).not.toBeInTheDocument()
 })
 
 test('Team lists the business team; admins add members and change roles', async () => {
