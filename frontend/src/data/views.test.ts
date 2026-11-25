@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { fixtureCompanies, fixtureContacts, fixtureDeals, lastSemester, thisSemester } from '../test/fixtures'
 import type { Deal } from './deals'
-import { companiesFrom, contactsFrom, myStatsFor, reportFor, workloadFor } from './views'
+import { companiesFrom, contactsFrom, entriesByDay, myStatsFor, reportFor, workloadFor } from './views'
 
 test('a company gathers its deals from every semester, newest first, and its contacts', () => {
   const granit = companiesFrom(fixtureCompanies, fixtureContacts, fixtureDeals).find((r) => r.company.name === 'Granit Consulting')!
@@ -128,4 +128,22 @@ test('the workload shows how the semester’s open deals are shared out, busiest
     ['Cy', 0, 0, 0, 0],
   ])
   expect(workload.unassigned).toBe(1)
+})
+
+test('the calendar puts events on every day they run, and only what still needs doing', () => {
+  const base = fixtureDeals[0]
+  const deal = (id: string, d: Partial<Deal>): Deal => ({ ...base, id, startDate: null, endDate: null, nextStepDue: null, invoiceDue: null, ...d })
+  const days = entriesByDay([
+    deal('hack', { status: 'signed', startDate: '2026-11-30', endDate: '2026-12-02', nextStepDue: '2026-11-25' }),
+    deal('done', { status: 'finished', nextStepDue: '2026-11-25', invoiceDue: '2026-11-26', invoiceStatus: 'paid' }),
+    deal('owed', { status: 'finished', invoiceDue: '2026-11-27', invoiceStatus: 'waiting' }),
+    deal('gone', { status: 'canceled', startDate: '2026-11-28' }),
+  ])
+  const on = (day: string) => (days.get(day) ?? []).map((e) => `${e.deal.id} ${e.kind}`)
+
+  expect(['2026-11-30', '2026-12-01', '2026-12-02'].map(on)).toEqual([['hack event'], ['hack event'], ['hack event']])
+  expect(on('2026-11-25')).toEqual(['hack next-step']) // not a finished deal's
+  expect(on('2026-11-26')).toEqual([]) // paid
+  expect(on('2026-11-27')).toEqual(['owed invoice'])
+  expect(on('2026-11-28')).toEqual([]) // canceled
 })
