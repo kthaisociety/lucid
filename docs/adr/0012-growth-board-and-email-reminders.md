@@ -8,8 +8,8 @@ content (recaps, series) and one-off projects. Its members check email more than
 a weekly reminder by email to keep their cards up to date. Their plan rolls out in steps: first the board
 and the reminders, then cards made from the business team's deals and the calendar.
 
-Until now Lucid was the business team's alone (ADR 0003), and it sends nothing: ADR 0009 proposes
-Mattermost for notifications. KTHAIS has an Amazon SES account that can send from a kthais.com address.
+Until now Lucid was the business team's alone (ADR 0003), and it sends nothing: ADR 0009's notifications are
+still proposed. KTHAIS has an Amazon SES account that can send from a kthais.com address.
 
 ## Decision
 - **Members belong to a team**, business or growth (`members.team`, business by default). An admin sets it
@@ -39,8 +39,8 @@ Mattermost for notifications. KTHAIS has an Amazon SES account that can send fro
 - **Staging** sends reminders only if it's given SMTP settings, and its members are testers (ADR 0007).
 
 ## Consequences
-- The growth team can use Lucid at once, without waiting for the Mattermost bot (ADR 0009). Email and
-  Mattermost can both exist: this one is the growth team's weekly reminder, that one a business digest.
+- The growth team can use Lucid at once, without waiting on ADR 0009. Its settings are the ones ADR 0009's
+  email proposal names, so the business digest can send through the same `growth.SMTP` when it's built.
 - Lucid holds one more secret, which can only send mail as `MAIL_FROM`.
 - A reminder is late, not lost, when the server is down on Monday morning: it goes when it's back that week.
 
