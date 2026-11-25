@@ -135,6 +135,8 @@ export default function App() {
   }
   const [addingLead, setAddingLead] = useState(false)
   const [addingTask, setAddingTask] = useState(false)
+  // A growth card to open on the growth board, picked on the calendar.
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -584,8 +586,25 @@ export default function App() {
                   )
                 }
               />
-              <Route path="growth" element={<GrowthPage tasks={growthTasks} onTasks={setGrowthTasks} onOpenDeal={openDeal} members={members} meId={user?.memberId} query={query} semester={semester} creating={addingTask} onCreated={() => setAddingTask(false)} />} />
-              <Route path="calendar" element={<CalendarPage deals={all} meId={user?.memberId} onSelect={openDeal} />} />
+              <Route path="growth" element={<GrowthPage tasks={growthTasks} onTasks={setGrowthTasks} onOpenDeal={openDeal} deals={all} openTaskId={openTaskId} onOpenedTask={() => setOpenTaskId(null)} members={members} meId={user?.memberId} query={query} semester={semester} creating={addingTask} onCreated={() => setAddingTask(false)} />} />
+              <Route
+                path="calendar"
+                element={
+                  <CalendarPage
+                    deals={all}
+                    tasks={growthTasks}
+                    workspace={workspace}
+                    meId={user?.memberId}
+                    onSelect={openDeal}
+                    onSelectTask={(id) => {
+                      setOpenTaskId(id)
+                      const task = growthTasks.find((t) => t.id === id)
+                      if (task) setSemester(task.semester)
+                      navigate('/growth')
+                    }}
+                  />
+                }
+              />
               <Route path="companies" element={<CompaniesPage companies={companies} contacts={contacts} deals={all} query={query} onSelect={openDeal} actions={companyActions} contactActions={contactActions} />} />
               <Route path="contacts" element={<ContactsPage companies={companies} contacts={contacts} deals={all} query={query} onSelect={openDeal} actions={contactActions} />} />
               <Route

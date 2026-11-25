@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { today, type Deal } from '../../data/deals'
+import { AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { today, type Deal, type Team } from '../../data/deals'
+import { postsByDay, type GrowthTask } from '../../data/growth'
 import { addDays, entriesByDay, type CalendarKind } from '../../data/views'
 import { chip } from '../chip'
 import { formatDate } from '../../format'
@@ -8,9 +9,16 @@ import { PageTitle } from './common'
 
 type Props = {
   deals: Deal[] // every semester's
+  tasks: GrowthTask[] // the growth board's, every semester's
+  // The workspace's own entries show: the deal log's, or the growth team's posts; "Both teams" shows both
+  // (docs/adr/0014).
+  workspace: Team
   meId?: string
   onSelect: (id: string) => void
+  onSelectTask: (id: string) => void
 }
+
+const postStyle = 'border-violet-200 bg-violet-50 text-violet-700'
 
 const kinds: { kind: CalendarKind; label: string; style: string }[] = [
   { kind: 'event', label: 'Event', style: 'border-indigo-200 bg-indigo-50 text-indigo-700' },
@@ -21,13 +29,17 @@ const styleOf = (kind: CalendarKind) => kinds.find((k) => k.kind === kind)!.styl
 
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-export default function CalendarPage({ deals, meId, onSelect }: Props) {
+export default function CalendarPage({ deals, tasks, workspace, meId, onSelect, onSelectTask }: Props) {
   const todayDate = today()
   const [month, setMonth] = useState(todayDate.slice(0, 7)) // YYYY-MM
   const [onMe, setOnMe] = useState(false)
+  const [both, setBoth] = useState(false)
+  const showDeals = workspace === 'business' || both
+  const showPosts = workspace === 'growth' || both
 
-  const shown = onMe ? deals.filter((d) => d.owner?.id === meId || d.support.some((p) => p.id === meId)) : deals
+  const shown = !showDeals ? [] : onMe ? deals.filter((d) => d.owner?.id === meId || d.support.some((p) => p.id === meId)) : deals
   const days = entriesByDay(shown)
+  const posts = postsByDay(!showPosts ? [] : onMe ? tasks.filter((t) => t.assignee?.id === meId) : tasks)
 
   const first = `${month}-01`
   const offset = (new Date(`${first}T00:00:00Z`).getUTCDay() + 6) % 7 // Monday first
@@ -39,7 +51,16 @@ export default function CalendarPage({ deals, meId, onSelect }: Props) {
 
   return (
     <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 md:px-6">
-      <PageTitle title="Calendar" subtitle="Events, next steps and invoices due, for every semester." />
+      <PageTitle
+        title="Calendar"
+        subtitle={
+          both
+            ? 'Both teams: events, next steps and invoices due, and the growth team’s posts.'
+            : workspace === 'growth'
+              ? 'The growth team’s posts by post date. Two on one day are flagged; turn on Both teams to plan around events.'
+              : 'Events, next steps and invoices due, for every semester.'
+        }
+      />
 
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
         <button type="button" aria-label="Previous month" onClick={() => setMonth(prevMonth)} className={chip(false)}>
@@ -60,12 +81,17 @@ export default function CalendarPage({ deals, meId, onSelect }: Props) {
             On me
           </button>
         )}
+        <button type="button" aria-pressed={both} onClick={() => setBoth((on) => !on)} className={chip(both)}>
+          Both teams
+        </button>
         <span className="ml-auto flex flex-wrap gap-2">
-          {kinds.map((k) => (
-            <span key={k.kind} className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${k.style}`}>
-              {k.label}
-            </span>
-          ))}
+          {showDeals &&
+            kinds.map((k) => (
+              <span key={k.kind} className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${k.style}`}>
+                {k.label}
+              </span>
+            ))}
+          {showPosts && <span className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${postStyle}`}>Post</span>}
         </span>
       </div>
 
@@ -78,6 +104,7 @@ export default function CalendarPage({ deals, meId, onSelect }: Props) {
           ))}
           {cells.map((day) => {
             const entries = days.get(day) ?? []
+            const dayPosts = posts.get(day) ?? []
             const inMonth = day.startsWith(month)
             return (
               <section
@@ -85,9 +112,17 @@ export default function CalendarPage({ deals, meId, onSelect }: Props) {
                 aria-label={formatDate(day)}
                 className={`min-h-24 bg-surface p-1.5 ${inMonth ? '' : 'opacity-50'}`}
               >
-                <p className={`mb-1 text-[11px] font-semibold ${day === todayDate ? 'inline-block rounded-full bg-indigo-600 px-1.5 text-white' : 'text-gray-500'}`}>
-                  {Number(day.slice(8))}
-                </p>
+                <div className="mb-1 flex items-center justify-between gap-1">
+                  <p className={`text-[11px] font-semibold ${day === todayDate ? 'inline-block rounded-full bg-indigo-600 px-1.5 text-white' : 'text-gray-500'}`}>
+                    {Number(day.slice(8))}
+                  </p>
+                  {/* Two posts on one day: a warning to sort out, never a block (docs/adr/0014). */}
+                  {dayPosts.length > 1 && (
+                    <span role="note" title={`${dayPosts.length} posts on one day`} className="flex items-center gap-0.5 text-[10px] font-semibold text-amber-700">
+                      <AlertTriangle size={11} aria-hidden /> {dayPosts.length} posts
+                    </span>
+                  )}
+                </div>
                 <ul className="space-y-1">
                   {entries.map(({ deal, kind }) => (
                     <li key={`${deal.id}-${kind}`}>
@@ -98,6 +133,19 @@ export default function CalendarPage({ deals, meId, onSelect }: Props) {
                         className={`block w-full truncate rounded border px-1.5 py-0.5 text-left text-[11px] font-medium ${styleOf(kind)}`}
                       >
                         {deal.company}
+                      </button>
+                    </li>
+                  ))}
+                  {dayPosts.map((task) => (
+                    <li key={task.id}>
+                      <button
+                        type="button"
+                        onClick={() => onSelectTask(task.id)}
+                        title={`${task.title}: post${task.channels.length ? ` on ${task.channels.join(', ')}` : ''}`}
+                        className={`block w-full truncate rounded border px-1.5 py-0.5 text-left text-[11px] font-medium ${postStyle}`}
+                      >
+                        {task.title}
+                        {task.channels.length > 0 && <span className="font-normal opacity-75"> · {task.channels.join(', ')}</span>}
                       </button>
                     </li>
                   ))}
