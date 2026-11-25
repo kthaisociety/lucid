@@ -82,12 +82,12 @@ func seed(tx *gorm.DB) error {
 		return &d
 	}
 	for _, t := range []deals.GrowthTask{
-		{Title: "Announce the autumn hackathon", TaskType: "event_post", AssigneeID: &members["Elsa Nyberg"].ID, PostDate: day(5), Channels: []string{"LinkedIn", "Instagram"}, Status: "draft"},
-		{Title: "Job post: summer interns", TaskType: "job_post", AssigneeID: &members["Leo Sandberg"].ID, PostDate: day(-2), Channels: []string{"LinkedIn"}, Status: "quality_check"},
-		{Title: "Welcome our new partner", TaskType: "partnership_post", AssigneeID: &members["Elsa Nyberg"].ID, PostDate: day(12), Channels: []string{"LinkedIn", "Newsletter"}, Status: "backlog"},
-		{Title: "Workshop recap series", TaskType: "content", AssigneeID: &members["Leo Sandberg"].ID, Channels: []string{"Instagram"}, Status: "scheduled", PostDate: day(1)},
-		{Title: "Lunch lecture recap", TaskType: "content", PostDate: day(-9), Channels: []string{"LinkedIn"}, Status: "posted"},
-		{Title: "Automate the weekly post report", TaskType: "project", Channels: []string{}, Status: "backlog"},
+		{Title: "Announce the autumn hackathon", Semester: "HT 2026", TaskType: "event_post", AssigneeID: &members["Elsa Nyberg"].ID, PostDate: day(5), Channels: []string{"LinkedIn", "Instagram"}, Status: "draft"},
+		{Title: "Job post: summer interns", Semester: "HT 2026", TaskType: "job_post", AssigneeID: &members["Leo Sandberg"].ID, PostDate: day(-2), Channels: []string{"LinkedIn"}, Status: "quality_check"},
+		{Title: "Welcome our new partner", Semester: "HT 2026", TaskType: "partnership_post", AssigneeID: &members["Elsa Nyberg"].ID, PostDate: day(12), Channels: []string{"LinkedIn", "Newsletter"}, Status: "backlog"},
+		{Title: "Workshop recap series", Semester: "HT 2026", TaskType: "content", AssigneeID: &members["Leo Sandberg"].ID, Channels: []string{"Instagram"}, Status: "scheduled", PostDate: day(1)},
+		{Title: "Lunch lecture recap", Semester: "HT 2026", TaskType: "content", PostDate: day(-9), Channels: []string{"LinkedIn"}, Status: "posted"},
+		{Title: "Automate the weekly post report", Semester: "HT 2026", TaskType: "project", Channels: []string{}, Status: "backlog"},
 	} {
 		if err := tx.Create(&t).Error; err != nil {
 			return err

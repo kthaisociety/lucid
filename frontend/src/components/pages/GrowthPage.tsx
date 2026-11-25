@@ -1,44 +1,58 @@
-import { useEffect, useState, type DragEvent } from 'react'
-import { createGrowthTask, deleteGrowthTask, fetchGrowthTasks, updateGrowthTask } from '../../api'
-import { today, type Person } from '../../data/deals'
+import { useState, type DragEvent } from 'react'
+import { createGrowthTask, deleteGrowthTask, updateGrowthTask } from '../../api'
+import { semesterOptions, today, type Person } from '../../data/deals'
 import {
   CHANNELS,
   GROWTH_STATUSES,
   GROWTH_TASK_TYPES,
+  hasNoMovement,
   isOverdue,
   typeLabel,
   type GrowthStatus,
   type GrowthTask,
   type GrowthTaskInput,
+  type GrowthTaskType,
 } from '../../data/growth'
 import { formatDate, messageOf } from '../../format'
 import FormDialog, { inputClass } from '../dialogs/FormDialog'
+import { chip } from '../chip'
 import OwnerAvatar from '../OwnerAvatar'
-import { AddButton, PageTitle } from './common'
+import ViewToggle, { type View } from '../ViewToggle'
+import { cell, headCell, table } from './common'
 
 // Its own drag type, so a deal card can't be dropped on this board.
 const TASK_DRAG_TYPE = 'application/x-lucid-growth-task'
 
-type Props = { members: Person[]; meId?: string }
+type Props = {
+  // Every semester's tasks, which the app loads with the deals; onTasks changes them.
+  tasks: GrowthTask[]
+  onTasks: (change: (tasks: GrowthTask[]) => GrowthTask[]) => void
+  members: Person[]
+  meId?: string
+  query: string // the header's search
+  semester: string // the header's, as on the pipeline; a new task is in it
+  // New task, from the header: the dialog shows until onCreated.
+  creating: boolean
+  onCreated: () => void
+}
 
-// The growth team's board (docs/adr/0012). It loads its own tasks: the deal log doesn't need them.
-export default function GrowthPage({ members, meId }: Props) {
-  const [tasks, setTasks] = useState<GrowthTask[] | null>(null)
+const matches = (task: GrowthTask, query: string) => {
+  const q = query.trim().toLowerCase()
+  return !q || [task.title, task.notes, task.assignee?.name ?? '', ...task.channels].some((text) => text.toLowerCase().includes(q))
+}
+
+// The growth team's board (docs/adr/0012): one semester's tasks, with the pipeline's filter bar.
+export default function GrowthPage({ tasks, onTasks, members, meId, query, semester, creating, onCreated }: Props) {
   const [error, setError] = useState<string | null>(null)
-  const [editing, setEditing] = useState<GrowthTask | 'new' | null>(null)
+  const [editing, setEditing] = useState<GrowthTask | null>(null)
+  const [view, setView] = useState<View>('board')
+  const [taskType, setTaskType] = useState<GrowthTaskType | 'all'>('all')
+  const [assignee, setAssignee] = useState<'anyone' | 'mine' | 'unassigned'>('anyone')
+  const [followUpOnly, setFollowUpOnly] = useState(false)
   const [showCanceled, setShowCanceled] = useState(false)
-  const [onMe, setOnMe] = useState(false)
-
-  useEffect(() => {
-    const controller = new AbortController()
-    fetchGrowthTasks(controller.signal)
-      .then(setTasks)
-      .catch((err: unknown) => controller.signal.aborted || setError(`Couldn't load the board: ${messageOf(err)}`))
-    return () => controller.abort()
-  }, [])
 
   const put = (task: GrowthTask) =>
-    setTasks((ts) => (ts?.some((t) => t.id === task.id) ? ts.map((t) => (t.id === task.id ? task : t)) : [...(ts ?? []), task]))
+    onTasks((ts) => (ts.some((t) => t.id === task.id) ? ts.map((t) => (t.id === task.id ? task : t)) : [...ts, task]))
 
   // A drag moves the card at once; if the save fails it goes back, with the reason.
   const move = (task: GrowthTask, status: GrowthStatus) => {
@@ -52,63 +66,114 @@ export default function GrowthPage({ members, meId }: Props) {
       })
   }
 
-  if (tasks === null) return <p className="m-6 text-sm text-gray-500">{error ?? 'Loading the board…'}</p>
-  const shown = onMe ? tasks.filter((t) => t.assignee?.id === meId) : tasks
   const day = today()
+  const shown = tasks.filter(
+    (t) =>
+      matches(t, query) &&
+      t.semester === semester &&
+      (taskType === 'all' || t.taskType === taskType) &&
+      (assignee === 'anyone' || (assignee === 'mine' ? t.assignee?.id === meId : t.assignee === null)) &&
+      (!followUpOnly || isOverdue(t, day) || hasNoMovement(t)) &&
+      (showCanceled || t.status !== 'canceled'),
+  )
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col pt-4">
-      <div className="flex items-start justify-between gap-3 px-4 md:px-6">
-        <PageTitle title="Growth" subtitle="The growth team's posts, content and projects. Each growth member gets a reminder by email on Mondays." />
-        <div className="flex shrink-0 items-center gap-3 text-xs text-gray-600">
-          <label className="flex items-center gap-1.5">
-            <input type="checkbox" checked={onMe} onChange={(e) => setOnMe(e.target.checked)} /> On me
-          </label>
-          <label className="flex items-center gap-1.5">
-            <input type="checkbox" checked={showCanceled} onChange={(e) => setShowCanceled(e.target.checked)} /> Canceled
-          </label>
-          <AddButton label="New task" onClick={() => setEditing('new')} />
-        </div>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        role="toolbar"
+        aria-label="Filters"
+        className="flex items-center gap-1.5 overflow-x-auto px-4 pt-4 pb-3 whitespace-nowrap md:flex-wrap md:px-6 [&>*]:shrink-0"
+      >
+        <ViewToggle view={view} onChange={setView} />
+        {[{ id: 'all' as const, label: 'All types' }, ...GROWTH_TASK_TYPES].map((t) => (
+          <button key={t.id} type="button" aria-pressed={taskType === t.id} onClick={() => setTaskType(t.id)} className={chip(taskType === t.id)}>
+            {t.label}
+          </button>
+        ))}
+        <span className="mx-1.5 h-4 w-px bg-gray-200" />
+        {meId && (
+          <button
+            type="button"
+            aria-pressed={assignee === 'mine'}
+            onClick={() => setAssignee(assignee === 'mine' ? 'anyone' : 'mine')}
+            className={chip(assignee === 'mine')}
+          >
+            On me
+          </button>
+        )}
+        <button
+          type="button"
+          aria-pressed={assignee === 'unassigned'}
+          onClick={() => setAssignee(assignee === 'unassigned' ? 'anyone' : 'unassigned')}
+          className={chip(assignee === 'unassigned')}
+        >
+          Unassigned
+        </button>
+        <button type="button" aria-pressed={followUpOnly} onClick={() => setFollowUpOnly((on) => !on)} className={chip(followUpOnly)}>
+          Needs follow-up
+        </button>
+        <button type="button" aria-pressed={showCanceled} onClick={() => setShowCanceled((on) => !on)} className={chip(showCanceled)}>
+          Show canceled
+        </button>
       </div>
+      {query.trim() && (
+        <p role="status" className="mx-4 mb-3 text-xs text-gray-600 md:mx-6">
+          {shown.length === 0 ? 'No tasks' : `${shown.length} ${shown.length === 1 ? 'task' : 'tasks'}`} matching “{query.trim()}”
+        </p>
+      )}
       {error && (
         <p role="alert" className="mx-4 mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 md:mx-6">
           {error}
         </p>
       )}
-      <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-4 pb-6 md:px-6">
-        {GROWTH_STATUSES.filter((s) => showCanceled || s.id !== 'canceled').map((status) => (
-          <Column
-            key={status.id}
-            label={status.label}
-            color={status.color}
-            tasks={shown.filter((t) => t.status === status.id)}
-            today={day}
-            onOpen={setEditing}
-            onDrop={(id) => {
-              const task = tasks.find((t) => t.id === id)
-              if (task && task.status !== status.id) move(task, status.id)
-            }}
-          />
-        ))}
-      </div>
-      {editing && (
+      {view === 'list' ? (
+        <TaskTable tasks={shown} today={day} onOpen={setEditing} />
+      ) : (
+        <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-4 pb-6 md:px-6">
+          {GROWTH_STATUSES.filter((s) => showCanceled || s.id !== 'canceled').map((status) => (
+            <Column
+              key={status.id}
+              label={status.label}
+              color={status.color}
+              tasks={shown.filter((t) => t.status === status.id)}
+              today={day}
+              onOpen={setEditing}
+              onDrop={(id) => {
+                const task = tasks.find((t) => t.id === id)
+                if (task && task.status !== status.id) move(task, status.id)
+              }}
+            />
+          ))}
+        </div>
+      )}
+      {creating && (
         <TaskDialog
-          task={editing === 'new' ? null : editing}
+          task={null}
+          semester={semester}
           members={members}
           meId={meId}
           onSave={async (input) => {
-            put(editing === 'new' ? await createGrowthTask(input) : await updateGrowthTask(editing.id, input))
+            put(await createGrowthTask(input))
+            onCreated()
+          }}
+          onClose={onCreated}
+        />
+      )}
+      {editing && (
+        <TaskDialog
+          task={editing}
+          semester={editing.semester}
+          members={members}
+          meId={meId}
+          onSave={async (input) => {
+            put(await updateGrowthTask(editing.id, input))
             setEditing(null)
           }}
-          onDelete={
-            editing === 'new'
-              ? undefined
-              : async () => {
-                  await deleteGrowthTask(editing.id)
-                  setTasks((ts) => ts && ts.filter((t) => t.id !== editing.id))
-                  setEditing(null)
-                }
-          }
+          onDelete={async () => {
+            await deleteGrowthTask(editing.id)
+            onTasks((ts) => ts.filter((t) => t.id !== editing.id))
+            setEditing(null)
+          }}
           onClose={() => setEditing(null)}
         />
       )}
@@ -209,8 +274,57 @@ function Column({
   )
 }
 
+const statusOrder = (t: GrowthTask) => GROWTH_STATUSES.findIndex((s) => s.id === t.status)
+
+// The board as a table, like the pipeline's list: in status order, then by post date.
+function TaskTable({ tasks, today, onOpen }: { tasks: GrowthTask[]; today: string; onOpen: (task: GrowthTask) => void }) {
+  const rows = [...tasks].sort((a, b) => statusOrder(a) - statusOrder(b) || (a.postDate ?? '9999').localeCompare(b.postDate ?? '9999'))
+  return (
+    <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
+      <table className={table}>
+        <thead className="bg-gray-50 text-[11px] text-gray-500">
+          <tr>
+            {['Title', 'Type', 'Status', 'Assignee', 'Post date', 'Channels'].map((h) => (
+              <th key={h} className={headCell}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((t) => (
+            <tr key={t.id} className="cursor-pointer align-top hover:bg-gray-50" onClick={() => onOpen(t)}>
+              <td className={cell}>
+                <button type="button" onClick={() => onOpen(t)} className="font-semibold text-gray-900 hover:text-indigo-700">
+                  {t.title}
+                </button>
+              </td>
+              <td className={`${cell} text-gray-500`}>{typeLabel(t.taskType)}</td>
+              <td className={cell}>{GROWTH_STATUSES[statusOrder(t)].label}</td>
+              <td className={cell}>{t.assignee?.name ?? '—'}</td>
+              <td className={`${cell} whitespace-nowrap ${isOverdue(t, today) ? 'font-semibold text-red-600' : 'text-gray-500'}`}>
+                {t.postDate ? formatDate(t.postDate) : '—'}
+                {isOverdue(t, today) && ' (overdue)'}
+              </td>
+              <td className={`${cell} text-gray-500`}>{t.channels.join(', ') || '—'}</td>
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={6} className="px-3 py-8 text-center text-gray-400">
+                No tasks
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function TaskDialog({
   task,
+  semester: initialSemester,
   members,
   meId,
   onSave,
@@ -218,6 +332,7 @@ function TaskDialog({
   onClose,
 }: {
   task: GrowthTask | null
+  semester: string
   members: Person[]
   meId?: string
   onSave: (input: GrowthTaskInput) => Promise<void>
@@ -226,6 +341,7 @@ function TaskDialog({
 }) {
   const [title, setTitle] = useState(task?.title ?? '')
   const [taskType, setTaskType] = useState(task?.taskType ?? 'event_post')
+  const [semester, setSemester] = useState(initialSemester)
   const [assigneeId, setAssigneeId] = useState(task ? (task.assignee?.id ?? '') : (meId ?? ''))
   const [postDate, setPostDate] = useState(task?.postDate ?? '')
   const [channels, setChannels] = useState(task?.channels ?? [])
@@ -239,7 +355,7 @@ function TaskDialog({
       title={task ? 'Edit task' : 'New task'}
       submitLabel={task ? 'Save' : 'Add task'}
       onSubmit={() =>
-        onSave({ title: title.trim(), taskType, assigneeId: assigneeId || null, postDate: postDate || null, channels, status, notes })
+        onSave({ title: title.trim(), taskType, semester, assigneeId: assigneeId || null, postDate: postDate || null, channels, status, notes })
       }
       onDelete={onDelete}
       deleteWhat="task"
@@ -257,6 +373,14 @@ function TaskDialog({
               <option key={t.id} value={t.id}>
                 {t.label}
               </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          Semester
+          <select value={semester} onChange={(e) => setSemester(e.target.value)} className={inputClass}>
+            {semesterOptions(semester).map((s) => (
+              <option key={s}>{s}</option>
             ))}
           </select>
         </label>

@@ -13,16 +13,24 @@ Mattermost for notifications. KTHAIS has an Amazon SES account that can send fro
 
 ## Decision
 - **Members belong to a team**, business or growth (`members.team`, business by default). An admin sets it
-  on the Team page. The team only decides who gets growth reminders: roles (ADR 0003) still decide what
-  someone may do, and every member sees and edits both boards.
+  on the Team page. The team decides who gets growth reminders and which workspace someone starts in:
+  roles (ADR 0003) still decide what someone may do, and every member can see and edit both boards.
+- **Two workspaces, Business and Growth**, switched in the header. Business has the pipeline, companies,
+  contacts and the deal log's report; Growth has the growth board and its report. My page and Team are in
+  both, and Team shows the workspace's team first. Everyone starts in their team's workspace; a switch is
+  kept per browser, and a link to a page only one workspace has (the board, from a reminder) opens it.
+  Both work the same way: a semester picker, board and list views, and the same filter bar and search.
 - **Growth tasks** are their own table, not deals: a title, a type (event post, partnership post, job
-  post, content, project), an assignee, a post date, channels, a status and notes. Statuses: Backlog →
+  post, content, project), a semester (as a deal has, so a task a deal makes takes the deal's), an assignee, a post date, channels, a status and notes. Statuses: Backlog →
   Draft → Quality check → Scheduled → Posted, or Canceled (the business board's spelling). A project
   needn't go through every status. Channels are LinkedIn and Instagram, which the team mostly uses, and
   Facebook, TikTok, Newsletter and Website, until the team asks to drop them.
 - **A weekly email reminder** goes to every growth member on Monday from 10:00 Stockholm time: their open
   cards, with any overdue (past their post date) or without movement (same status for 7 days), and a link
   to the board. A member with no open cards is asked to add theirs.
+- **Reports are each workspace's**, for the semester picked. The board (ADR 0003) sees Reports, and the
+  workspace decides which: the deal log's, or the growth board's (open, overdue, without movement, posted,
+  by status, channel and member). As before, this is the UI only: every member can read both boards.
 - **Email goes through SES's SMTP interface** with Go's standard library, so no AWS SDK. `SMTP_HOST`,
   `SMTP_USERNAME`, `SMTP_PASSWORD` (a secret, in OpenBao like the others) and `MAIL_FROM` turn reminders
   on; without them they're off.

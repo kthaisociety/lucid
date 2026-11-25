@@ -5,8 +5,9 @@ Words as this project uses them.
 - **Lucid**: this app. The business team's CRM, for KTHAIS's relations with companies (called business-crm until the repo was renamed).
 - **Business team**: the KTHAIS team that runs company relations and partnerships.
 - **Growth team**: the KTHAIS team that posts about events, partnerships and job posts, and makes other
-  content. A member's **team** (business or growth) only decides who gets growth reminders; everyone sees
-  both boards ([ADR 0012](docs/adr/0012-growth-board-and-email-reminders.md)).
+  content. A member's **team** (business or growth) decides who gets growth reminders and which
+  **workspace** they start in: Business (pipeline, companies, contacts) or Growth (the growth board),
+  switched in the header. Everyone can see both ([ADR 0012](docs/adr/0012-growth-board-and-email-reminders.md)).
 - **Growth board** and **growth task**: the growth team's board, and a card on it: a post (event,
   partnership or job post), other content, or a project, with an assignee, a post date and channels.
   Backlog → Draft → Quality check → Scheduled → Posted, or Canceled. A task with the same status for 7 days

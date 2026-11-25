@@ -6,11 +6,10 @@ import {
   EVENT_TYPES,
   INVOICE_STATUSES,
   STATUSES,
-  currentSemester,
   daysSince,
   lastTouchpoint,
   nudgeFor,
-  compareSemesters,
+  semesterOptions,
   statusLabel,
   type Activity,
   type Audience,
@@ -588,15 +587,6 @@ const LINKS = [
   { key: 'contract', label: 'Contract' },
   { key: 'writeUp', label: 'Write-up' },
 ] as const satisfies { key: keyof Deal['links']; label: string }[]
-
-// The semesters a deal can be moved to: last year's to two years ahead, newest first, and the deal's own.
-function semesterOptions(own: string, now = new Date()): string[] {
-  const year = now.getFullYear()
-  const options = [year + 2, year + 1, year, year - 1].flatMap((y) => [`HT ${y}`, `VT ${y}`])
-  if (!options.includes(own)) options.push(own)
-  if (!options.includes(currentSemester(now))) options.push(currentSemester(now))
-  return options.sort(compareSemesters)
-}
 
 // Only web addresses become links: anything else (a javascript: URL, say) is shown as text.
 const isWebAddress = (value: string) => /^https?:\/\/[^/\s]/i.test(value)

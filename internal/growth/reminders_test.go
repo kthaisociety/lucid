@@ -28,8 +28,8 @@ func TestRemindersGoToGrowthMembersOnceAWeekFromMondayAt10(t *testing.T) {
 	_, err = s.AddMember(ctx, deals.MemberInput{Email: "alva@example.com", Name: "Alva"}) // business
 	require.NoError(t, err)
 	for _, body := range []string{
-		`{"title":"Hackathon post","taskType":"event_post","postDate":"2026-11-27","assigneeId":"` + kim.ID + `"}`,
-		`{"title":"Old recap","taskType":"content","status":"posted","assigneeId":"` + kim.ID + `"}`,
+		`{"semester":"HT 2026","title":"Hackathon post","taskType":"event_post","postDate":"2026-11-27","assigneeId":"` + kim.ID + `"}`,
+		`{"semester":"HT 2026","title":"Old recap","taskType":"content","status":"posted","assigneeId":"` + kim.ID + `"}`,
 	} {
 		cols, err := deals.ParseGrowthTask([]byte(body))
 		require.NoError(t, err)

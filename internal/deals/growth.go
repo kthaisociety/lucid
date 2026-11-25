@@ -25,6 +25,7 @@ type GrowthTask struct {
 	ID              string `gorm:"type:uuid;default:gen_random_uuid()"`
 	Title           string
 	TaskType        string
+	Semester        string
 	AssigneeID      *string
 	Assignee        *Member `gorm:"foreignKey:AssigneeID"`
 	PostDate        *Date
@@ -40,6 +41,7 @@ type GrowthTaskView struct {
 	ID              string      `json:"id"`
 	Title           string      `json:"title"`
 	TaskType        string      `json:"taskType"`
+	Semester        string      `json:"semester"`
 	Assignee        *MemberView `json:"assignee"`
 	PostDate        *Date       `json:"postDate"`
 	Channels        []string    `json:"channels"`
@@ -54,6 +56,7 @@ func viewOfGrowthTask(t GrowthTask) GrowthTaskView {
 		ID:              t.ID,
 		Title:           t.Title,
 		TaskType:        t.TaskType,
+		Semester:        t.Semester,
 		PostDate:        t.PostDate,
 		Channels:        t.Channels,
 		Status:          t.Status,
@@ -84,13 +87,16 @@ func (s *Store) ListGrowthTasks(ctx context.Context) ([]GrowthTaskView, error) {
 	return views, nil
 }
 
-// CreateGrowthTask adds a task from what ParseGrowthTask read; it needs a title and a type.
+// CreateGrowthTask adds a task from what ParseGrowthTask read; it needs a title, a type and a semester.
 func (s *Store) CreateGrowthTask(ctx context.Context, cols map[string]any) (GrowthTaskView, error) {
 	if cols["title"] == nil || cols["title"] == "" {
 		return GrowthTaskView{}, invalid("a task needs a title")
 	}
 	if cols["task_type"] == nil {
 		return GrowthTaskView{}, invalid("taskType must be one of %s", strings.Join(growthTypes, ", "))
+	}
+	if cols["semester"] == nil {
+		return GrowthTaskView{}, invalid(`semester must look like "HT 2026" or "VT 2026"`)
 	}
 	var view GrowthTaskView
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -202,6 +208,12 @@ func ParseGrowthTask(body []byte) (map[string]any, error) {
 				return nil, err
 			}
 			cols["task_type"] = s
+		case "semester":
+			var s string
+			if json.Unmarshal(value, &s) != nil || !semesterPattern.MatchString(s) {
+				return nil, invalid(`semester must look like "HT 2026" or "VT 2026"`)
+			}
+			cols["semester"] = s
 		case "status":
 			s, err := oneOf(field, value, GrowthStatuses)
 			if err != nil {

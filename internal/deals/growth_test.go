@@ -24,9 +24,10 @@ func TestGrowthTaskLifecycle(t *testing.T) {
 	me, err := s.SignIn(ctx, alva)
 	require.NoError(t, err)
 
-	task, err := s.CreateGrowthTask(ctx, parseTask(t, `{"title":"Hackathon post","taskType":"event_post","assigneeId":"`+me.ID+`","postDate":"2026-12-01","channels":["LinkedIn","Instagram","LinkedIn"]}`))
+	task, err := s.CreateGrowthTask(ctx, parseTask(t, `{"semester":"HT 2026","title":"Hackathon post","taskType":"event_post","assigneeId":"`+me.ID+`","postDate":"2026-12-01","channels":["LinkedIn","Instagram","LinkedIn"]}`))
 	require.NoError(t, err)
 	assert.Equal(t, "backlog", task.Status)
+	assert.Equal(t, "HT 2026", task.Semester)
 	assert.Equal(t, []string{"LinkedIn", "Instagram"}, task.Channels)
 	assert.Equal(t, me.ID, task.Assignee.ID)
 	assert.Equal(t, deals.Date("2026-12-01"), *task.PostDate)
@@ -55,15 +56,19 @@ func TestGrowthTaskLifecycle(t *testing.T) {
 func TestGrowthTaskValidation(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
-	for _, body := range []string{`{"title":"x","taskType":"tweet"}`, `{"channels":["MySpace"]}`, `{"status":"done"}`, `{"assigneeId":"me"}`, `{"postDate":"soon"}`, `{"source":"x"}`, `{}`} {
+	for _, body := range []string{`{"semester":"HT 2026","title":"x","taskType":"tweet"}`, `{"channels":["MySpace"]}`, `{"status":"done"}`, `{"assigneeId":"me"}`, `{"postDate":"soon"}`, `{"source":"x"}`, `{}`} {
 		_, err := deals.ParseGrowthTask([]byte(body))
 		validationError(t, err)
 	}
 	_, err := s.CreateGrowthTask(ctx, parseTask(t, `{"taskType":"content"}`))
 	validationError(t, err)
-	_, err = s.CreateGrowthTask(ctx, parseTask(t, `{"title":"Recap"}`))
+	_, err = s.CreateGrowthTask(ctx, parseTask(t, `{"semester":"HT 2026","title":"Recap"}`))
 	validationError(t, err)
-	_, err = s.CreateGrowthTask(ctx, parseTask(t, `{"title":"Recap","taskType":"content","assigneeId":"00000000-0000-0000-0000-000000000000"}`))
+	_, err = s.CreateGrowthTask(ctx, parseTask(t, `{"title":"Recap","taskType":"content"}`))
+	validationError(t, err) // no semester
+	_, err = deals.ParseGrowthTask([]byte(`{"semester":"autumn"}`))
+	validationError(t, err)
+	_, err = s.CreateGrowthTask(ctx, parseTask(t, `{"semester":"HT 2026","title":"Recap","taskType":"content","assigneeId":"00000000-0000-0000-0000-000000000000"}`))
 	validationError(t, err)
 }
 
@@ -77,7 +82,7 @@ func TestRemovingAMemberUnassignsTheirGrowthTasks(t *testing.T) {
 	kim, err := s.AddMember(ctx, deals.MemberInput{Email: "kim@example.com", Name: "Kim", Team: "growth"})
 	require.NoError(t, err)
 	assert.Equal(t, "growth", kim.Team)
-	task, err := s.CreateGrowthTask(ctx, parseTask(t, `{"title":"Series","taskType":"content","assigneeId":"`+kim.ID+`"}`))
+	task, err := s.CreateGrowthTask(ctx, parseTask(t, `{"semester":"HT 2026","title":"Series","taskType":"content","assigneeId":"`+kim.ID+`"}`))
 	require.NoError(t, err)
 
 	require.NoError(t, s.RemoveMember(ctx, kim.ID))

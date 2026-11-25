@@ -1143,6 +1143,69 @@ test('Reports are for the board and admins', async () => {
   }
 })
 
+const growthTask = {
+  id: 't-1',
+  title: 'Hackathon post',
+  taskType: 'event_post' as const,
+  semester: thisSemester,
+  assignee: null,
+  postDate: null,
+  channels: ['LinkedIn' as const],
+  status: 'draft' as const,
+  notes: '',
+  statusChangedAt: '2020-01-01T10:00:00Z', // no movement since
+  createdAt: new Date().toISOString(),
+}
+
+test('growth members start in the growth workspace: its board, report and team', async () => {
+  api = stubApi({ role: 'board', team: 'growth' })
+  api.growthTasks = [growthTask]
+  const other = api.members.findIndex((m) => m.id !== devMember.id)
+  api.members[other] = { ...api.members[other], team: 'growth' }
+  renderAt('/')
+
+  expect(await screen.findByRole('region', { name: 'Draft' })).toHaveTextContent('Hackathon post')
+  const nav = within(screen.getByRole('navigation', { name: 'Main' }))
+  expect(nav.getByRole('link', { name: 'Growth board' })).toBeInTheDocument()
+  expect(nav.queryByRole('link', { name: 'Pipeline' })).not.toBeInTheDocument()
+  expect(nav.queryByRole('link', { name: 'Companies' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'New Lead' })).not.toBeInTheDocument()
+
+  fireEvent.click(nav.getByRole('link', { name: 'Reports' }))
+  expect(await screen.findByRole('heading', { name: `Growth report · ${thisSemester}` })).toBeInTheDocument()
+  expect(within(screen.getByRole('region', { name: 'Needs follow-up' })).getByText('Hackathon post')).toBeInTheDocument()
+
+  fireEvent.click(nav.getByRole('link', { name: 'Team' }))
+  expect(await screen.findByRole('button', { name: /^Growth \(2\)/ })).toHaveAttribute('aria-pressed', 'true')
+  expect((await screen.findAllByRole('row')).length - 1).toBe(2)
+  fireEvent.click(screen.getByRole('button', { name: /^Everyone/ }))
+  expect((await screen.findAllByRole('row')).length - 1).toBe(api.members.length)
+})
+
+test('switching workspace shows the other team’s pages, and is remembered', async () => {
+  await renderApp()
+  const workspace = within(screen.getByRole('group', { name: 'Workspace' }))
+  expect(workspace.getByRole('button', { name: 'Business' })).toHaveAttribute('aria-pressed', 'true')
+
+  fireEvent.click(workspace.getByRole('button', { name: 'Growth' }))
+  expect(await screen.findByRole('region', { name: 'Backlog' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'New Lead' })).not.toBeInTheDocument()
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', { name: 'Reports' }))
+  expect(await screen.findByRole('heading', { name: `Growth report · ${thisSemester}` })).toBeInTheDocument()
+  cleanup()
+
+  renderAt('/')
+  expect(await screen.findByRole('region', { name: 'Backlog' })).toBeInTheDocument()
+  fireEvent.click(within(screen.getByRole('group', { name: 'Workspace' })).getByRole('button', { name: 'Business' }))
+  expect(await screen.findByText('Kvarnholmen AI')).toBeInTheDocument()
+})
+
+test('a link to a page only one workspace has opens that workspace', async () => {
+  renderAt('/growth')
+  expect(await screen.findByRole('region', { name: 'Backlog' })).toBeInTheDocument()
+  expect(within(screen.getByRole('group', { name: 'Workspace' })).getByRole('button', { name: 'Growth' })).toHaveAttribute('aria-pressed', 'true')
+})
+
 test('members don’t see Reports', async () => {
   api = stubApi({ role: 'member' })
   renderAt('/reports')

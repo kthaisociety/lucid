@@ -1,13 +1,14 @@
 import { BarChart3, Building2, KanbanSquare, LogOut, Mail, Megaphone, UserCog, UserRound, Users } from 'lucide-react'
 import { NavLink } from 'react-router'
 import type { User } from '../../api'
-import { canSeeReports } from '../../data/deals'
+import { canSeeReports, type Team } from '../../data/deals'
 import type { ThemeChoice } from '../../theme'
 import OwnerAvatar from '../OwnerAvatar'
 import ThemeSwitch from './ThemeSwitch'
 
 type Props = {
   user: User | null
+  workspace: Team
   userError: string | null
   theme: ThemeChoice
   onTheme: (theme: ThemeChoice) => void
@@ -15,29 +16,31 @@ type Props = {
   onDisconnectGmail: () => void
 }
 
-const pages = [
-  { label: 'Pipeline', icon: KanbanSquare, path: '/' },
-  { label: 'Growth', icon: Megaphone, path: '/growth' },
+// Pages with a team are that workspace's only (docs/adr/0012); the rest show in both.
+const pages: { label: string; icon: typeof KanbanSquare; path: string; boardOnly?: boolean; team?: Team }[] = [
+  { label: 'Pipeline', icon: KanbanSquare, path: '/', team: 'business' },
+  { label: 'Growth board', icon: Megaphone, path: '/growth', team: 'growth' },
   { label: 'My page', icon: UserRound, path: '/me' },
-  { label: 'Companies', icon: Building2, path: '/companies' },
-  { label: 'Contacts', icon: Users, path: '/contacts' },
+  { label: 'Companies', icon: Building2, path: '/companies', team: 'business' },
+  { label: 'Contacts', icon: Users, path: '/contacts', team: 'business' },
   { label: 'Reports', icon: BarChart3, path: '/reports', boardOnly: true },
   { label: 'Team', icon: UserCog, path: '/team' },
 ]
 
-// The pages this user's role opens.
-const pagesFor = (user: User | null) => pages.filter((p) => !p.boardOnly || canSeeReports(user?.role))
+// The pages this user's role opens, in this workspace.
+const pagesFor = (user: User | null, workspace: Team) =>
+  pages.filter((p) => (!p.boardOnly || canSeeReports(user?.role)) && (!p.team || p.team === workspace))
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm ${
     isActive ? 'bg-gray-100 font-semibold text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
   }`
 
-export default function Sidebar({ user, userError, theme, onTheme, onSignOut, onDisconnectGmail }: Props) {
+export default function Sidebar({ user, workspace, userError, theme, onTheme, onSignOut, onDisconnectGmail }: Props) {
   return (
     <aside className="hidden w-56 shrink-0 flex-col border-r border-gray-200 bg-surface p-3 md:flex">
       <nav aria-label="Main" className="flex flex-col gap-0.5">
-        {pagesFor(user).map(({ label, icon: Icon, path }) => (
+        {pagesFor(user, workspace).map(({ label, icon: Icon, path }) => (
           <NavLink key={path} to={path} end className={linkClass}>
             <Icon size={16} aria-hidden />
             {label}
@@ -109,12 +112,14 @@ export default function Sidebar({ user, userError, theme, onTheme, onSignOut, on
 // the sidebar's user chip has: Gmail, and signing out.
 export function MobileNav({
   user,
+  workspace,
   theme,
   onTheme,
   onSignOut,
   onDisconnectGmail,
 }: {
   user: User | null
+  workspace: Team
   theme: ThemeChoice
   onTheme: (theme: ThemeChoice) => void
   onSignOut: () => void
@@ -122,7 +127,7 @@ export function MobileNav({
 }) {
   return (
     <nav aria-label="Pages" className="flex gap-1 overflow-x-auto border-b border-gray-200 bg-surface px-4 py-2 md:hidden">
-      {pagesFor(user).map(({ label, path }) => (
+      {pagesFor(user, workspace).map(({ label, path }) => (
         <NavLink
           key={path}
           to={path}

@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { KanbanSquare, List, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { DEAL_TYPES, nudgeFor, type Deal, type DealType, type Status } from '../data/deals'
+import { chip } from './chip'
 import KanbanBoard from './kanban/KanbanBoard'
 import DealTable from './list/DealTable'
+import ViewToggle, { type View } from './ViewToggle'
 
 type Props = {
   deals: Deal[] // the semester's, matching the search
@@ -20,11 +22,6 @@ type Props = {
   onMove: (id: string, status: Status) => void
 }
 
-const chip = (active: boolean) =>
-  `flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition ${
-    active ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-surface text-gray-600 hover:bg-gray-50'
-  }`
-
 export default function PipelineView({
   deals,
   semester,
@@ -38,7 +35,7 @@ export default function PipelineView({
   onSelect,
   onMove,
 }: Props) {
-  const [view, setView] = useState<'board' | 'list'>('board')
+  const [view, setView] = useState<View>('board')
   const [dealType, setDealType] = useState<DealType | 'all' | 'business'>('all')
   const [followUpOnly, setFollowUpOnly] = useState(false)
   const [freeOnly, setFreeOnly] = useState(false)
@@ -62,26 +59,7 @@ export default function PipelineView({
         aria-label="Filters"
         className="flex items-center gap-1.5 overflow-x-auto px-4 pt-4 pb-3 whitespace-nowrap md:flex-wrap md:px-6 [&>*]:shrink-0"
       >
-        <div className="mr-2 flex rounded-lg border border-gray-200 bg-surface p-0.5">
-          {(
-            [
-              ['board', 'Board', KanbanSquare],
-              ['list', 'List', List],
-            ] as const
-          ).map(([id, label, Icon]) => (
-            <button
-              key={id}
-              type="button"
-              aria-pressed={view === id}
-              onClick={() => setView(id)}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${
-                view === id ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              <Icon size={14} aria-hidden /> {label}
-            </button>
-          ))}
-        </div>
+        <ViewToggle view={view} onChange={setView} />
         {(['all', 'business', ...DEAL_TYPES] as const).map((t) => (
           <button key={t} type="button" aria-pressed={dealType === t} onClick={() => setDealType(t)} className={chip(dealType === t)}>
             {t === 'all' ? 'All types' : t === 'business' ? 'Business only' : t}

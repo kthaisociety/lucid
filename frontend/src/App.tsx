@@ -12,6 +12,7 @@ import {
   fetchContacts,
   fetchDeal,
   fetchDeals,
+  fetchGrowthTasks,
   fetchMe,
   fetchMembers,
   addMember,
@@ -42,6 +43,7 @@ import CompaniesPage, { type CompanyActions } from './components/pages/Companies
 import ContactsPage, { type ContactActions } from './components/pages/ContactsPage'
 import MyPage from './components/pages/MyPage'
 import GrowthPage from './components/pages/GrowthPage'
+import GrowthReport from './components/pages/GrowthReport'
 import ReportsPage from './components/pages/ReportsPage'
 import SignInPage from './components/pages/SignInPage'
 import TeamPage, { type TeamActions } from './components/pages/TeamPage'
@@ -56,11 +58,14 @@ import {
   type Contact,
   type Deal,
   type Person,
+  type Team,
   canSeeReports,
 } from './data/deals'
 import { messageOf } from './format'
+import type { GrowthTask } from './data/growth'
 import { LocalEdits } from './dealSync'
 import { useMinuteTick } from './hooks'
+import { storeWorkspace, storedWorkspace } from './workspace'
 
 function matches(deal: Deal, query: string): boolean {
   const q = query.trim().toLowerCase()
@@ -79,16 +84,17 @@ function matches(deal: Deal, query: string): boolean {
 
 const sumFees = (deals: Deal[]) => deals.reduce((sum, deal) => sum + (deal.feeSEK ?? 0), 0)
 
-type Data = { deals: Deal[]; companies: Company[]; contacts: Contact[]; members: Person[] }
+type Data = { deals: Deal[]; companies: Company[]; contacts: Contact[]; members: Person[]; growthTasks: GrowthTask[] }
 
 const fetchAll = async (signal?: AbortSignal): Promise<Data> => {
-  const [deals, companies, contacts, members] = await Promise.all([
+  const [deals, companies, contacts, members, growthTasks] = await Promise.all([
     fetchDeals(signal),
     fetchCompanies(signal),
     fetchContacts(signal),
     fetchMembers(signal),
+    fetchGrowthTasks(signal),
   ])
-  return { deals, companies, contacts, members }
+  return { deals, companies, contacts, members, growthTasks }
 }
 
 export default function App() {
@@ -127,6 +133,7 @@ export default function App() {
     setQuery('')
   }
   const [addingLead, setAddingLead] = useState(false)
+  const [addingTask, setAddingTask] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -140,12 +147,18 @@ export default function App() {
     return () => controller.abort()
   }, [])
 
-  // The growth team starts on its own board (docs/adr/0012), once, when the app opens on the pipeline.
-  const growthStart = user?.team === 'growth'
-  const openedOn = useRef(pathname)
-  useEffect(() => {
-    if (growthStart && openedOn.current === '/') navigate('/growth', { replace: true })
-  }, [growthStart, navigate])
+  // Which team's pages show (docs/adr/0012): your own team's until you switch. A page that only one
+  // workspace has (a link to the growth board in a reminder, say) switches to it.
+  const [chosenWorkspace, setChosenWorkspace] = useState<Team | null>(storedWorkspace)
+  const pageWorkspace: Team | null =
+    pathname === '/growth' ? 'growth' : pathname === '/companies' || pathname === '/contacts' ? 'business' : null
+  const workspace: Team = pageWorkspace ?? chosenWorkspace ?? user?.team ?? 'business'
+  const switchWorkspace = (team: Team) => {
+    storeWorkspace(team)
+    setChosenWorkspace(team)
+    // A page the other workspace doesn't have gives way to its board.
+    if (pageWorkspace || pathname === '/') navigate(team === 'growth' ? '/growth' : '/')
+  }
 
   useEffect(() => {
     const onSignedOut = () => setSignedOut(true)
@@ -240,8 +253,13 @@ export default function App() {
   const contacts = data?.contacts ?? []
   const members = data?.members ?? []
   const isAdmin = user?.role === 'admin'
-  // The current semester is always offered, even before it has deals.
-  const semesters = [...new Set([currentSemester(), ...all.map((deal) => deal.semester)])].sort(compareSemesters)
+  const growthTasks = data?.growthTasks ?? []
+  const setGrowthTasks = (change: (tasks: GrowthTask[]) => GrowthTask[]) =>
+    setData((d) => d && { ...d, growthTasks: change(d.growthTasks) })
+  // The current semester is always offered, even before it has deals or tasks; then the workspace's own.
+  const semesters = [
+    ...new Set([currentSemester(), ...(workspace === 'growth' ? growthTasks : all).map((item) => item.semester)]),
+  ].sort(compareSemesters)
 
   const replaceDeal = (id: string, change: (deal: Deal) => Deal) =>
     setData((d) => d && { ...d, deals: d.deals.map((deal) => (deal.id === id ? change(deal) : deal)) })
@@ -472,8 +490,14 @@ export default function App() {
         // Adding waits for the deal list, so a late first load can't replace a lead added meanwhile.
         canAddLead={user !== null && data !== null}
         onNewLead={() => setAddingLead(true)}
+        workspace={workspace}
+        onWorkspace={switchWorkspace}
+        onNewTask={() => {
+          setAddingTask(true)
+          if (pathname !== '/growth') navigate('/growth')
+        }}
       />
-      <MobileNav user={user} theme={theme} onTheme={setTheme} onSignOut={() => void leave()} onDisconnectGmail={() => void disconnect()} />
+      <MobileNav user={user} workspace={workspace} theme={theme} onTheme={setTheme} onSignOut={() => void leave()} onDisconnectGmail={() => void disconnect()} />
       <GmailBar
         outcome={gmailOutcome}
         ask={(user?.gmail === 'not-connected' || user?.gmail === 'reconnect') && !gmailLater}
@@ -482,7 +506,7 @@ export default function App() {
         onDismissOutcome={() => setGmailOutcome(null)}
       />
       <div className="flex min-h-0 flex-1">
-        <Sidebar user={user} userError={userError} theme={theme} onTheme={setTheme} onSignOut={() => void leave()} onDisconnectGmail={() => void disconnect()} />
+        <Sidebar user={user} workspace={workspace} userError={userError} theme={theme} onTheme={setTheme} onSignOut={() => void leave()} onDisconnectGmail={() => void disconnect()} />
         <main className="flex min-w-0 flex-1 flex-col">
           {notice && (
             <p role="alert" className="mx-6 mt-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
@@ -528,29 +552,43 @@ export default function App() {
               <Route
                 index
                 element={
-                  <PipelineView
-                    deals={inSemester.filter((deal) => matches(deal, query))}
-                    semester={semester}
-                    query={query.trim()}
-                    onClearSearch={() => setQuery('')}
-                    otherSemester={[...new Set(all.map((d) => d.semester))].filter((s) => s !== semester).sort(compareSemesters)[0] ?? null}
-                    canAddLead={user !== null}
-                    onNewLead={() => setAddingLead(true)}
-                    onSemester={setSemester}
-                    meId={user?.memberId}
-                    onSelect={setSelectedId}
-                    onMove={(id, status) => saveDeal(id, { status })}
-                  />
+                  workspace === 'growth' ? (
+                    <Navigate to="/growth" replace />
+                  ) : (
+                    <PipelineView
+                      deals={inSemester.filter((deal) => matches(deal, query))}
+                      semester={semester}
+                      query={query.trim()}
+                      onClearSearch={() => setQuery('')}
+                      otherSemester={[...new Set(all.map((d) => d.semester))].filter((s) => s !== semester).sort(compareSemesters)[0] ?? null}
+                      canAddLead={user !== null}
+                      onNewLead={() => setAddingLead(true)}
+                      onSemester={setSemester}
+                      meId={user?.memberId}
+                      onSelect={setSelectedId}
+                      onMove={(id, status) => saveDeal(id, { status })}
+                    />
+                  )
                 }
               />
-              <Route path="growth" element={<GrowthPage members={members} meId={user?.memberId} />} />
+              <Route path="growth" element={<GrowthPage tasks={growthTasks} onTasks={setGrowthTasks} members={members} meId={user?.memberId} query={query} semester={semester} creating={addingTask} onCreated={() => setAddingTask(false)} />} />
               <Route path="companies" element={<CompaniesPage companies={companies} contacts={contacts} deals={all} query={query} onSelect={openDeal} actions={companyActions} contactActions={contactActions} />} />
               <Route path="contacts" element={<ContactsPage companies={companies} contacts={contacts} deals={all} query={query} onSelect={openDeal} actions={contactActions} />} />
               <Route
                 path="reports"
                 element={
                   canSeeReports(user?.role) ? (
-                    <ReportsPage deals={all} members={members} semester={semester} onSelect={openDeal} />
+                    workspace === 'growth' ? (
+                      <GrowthReport tasks={growthTasks.filter((t) => t.semester === semester)} semester={semester} />
+                    ) : (
+                      <ReportsPage
+                        deals={all}
+                        // The business team, and anyone else who owns or supports a deal.
+                        members={members.filter((m) => m.team !== 'growth' || all.some((d) => d.owner?.id === m.id || d.support.some((p) => p.id === m.id)))}
+                        semester={semester}
+                        onSelect={openDeal}
+                      />
+                    )
                   ) : (
                     <p className="m-6 text-sm text-gray-500">
                       {user ? 'Reports are for the board and admins.' : 'Loading…'}
@@ -586,7 +624,7 @@ export default function App() {
               />
               <Route
                 path="team"
-                element={<TeamPage members={members} deals={all} meId={user?.memberId} isAdmin={isAdmin} actions={teamActions} />}
+                element={<TeamPage key={workspace} workspace={workspace} members={members} deals={all} meId={user?.memberId} isAdmin={isAdmin} actions={teamActions} />}
               />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

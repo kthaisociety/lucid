@@ -16,6 +16,8 @@ export type TeamActions = {
 }
 
 type Props = {
+  // The team shown first: the workspace's (docs/adr/0012).
+  workspace: Team
   members: Person[]
   deals: Deal[] // every semester's
   meId: string | undefined
@@ -25,9 +27,11 @@ type Props = {
 
 const roleLabel = (role: Role | undefined) => ROLES.find((r) => r.id === role)?.label ?? 'Member'
 
-export default function TeamPage({ members, deals, meId, isAdmin, actions }: Props) {
+export default function TeamPage({ workspace, members, deals, meId, isAdmin, actions }: Props) {
   const [adding, setAdding] = useState(false)
   const [handingOver, setHandingOver] = useState(false)
+  const [teamShown, setTeamShown] = useState<Team | 'all'>(workspace)
+  const shown = teamShown === 'all' ? members : members.filter((m) => (m.team ?? 'business') === teamShown)
   const [error, setError] = useState<string | null>(null)
 
   // Where Connect Gmail is on, who has connected (docs/adr/0006).
@@ -73,6 +77,19 @@ export default function TeamPage({ members, deals, meId, isAdmin, actions }: Pro
           {error}
         </p>
       )}
+      <div role="group" aria-label="Show team" className="mb-2 flex gap-1">
+        {[{ id: 'all' as const, label: 'Everyone' }, ...TEAMS].map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            aria-pressed={teamShown === t.id}
+            onClick={() => setTeamShown(t.id)}
+            className={`rounded-md px-2.5 py-1 text-xs ${teamShown === t.id ? 'bg-gray-100 font-semibold text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
+            {t.label} ({t.id === 'all' ? members.length : members.filter((m) => (m.team ?? 'business') === t.id).length})
+          </button>
+        ))}
+      </div>
       <table className={table}>
         <thead className="bg-gray-50 text-[11px] text-gray-500">
           <tr>
@@ -84,7 +101,7 @@ export default function TeamPage({ members, deals, meId, isAdmin, actions }: Pro
           </tr>
         </thead>
         <tbody>
-          {members.map((member) => {
+          {shown.map((member) => {
             const owned = deals.filter((d) => d.owner?.id === member.id)
             const supports = deals.some((d) => d.support.some((p) => p.id === member.id))
             return (

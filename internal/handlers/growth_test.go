@@ -17,7 +17,7 @@ func TestGrowthBoardAPI(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "[]", w.Body.String())
 
-	w = send(r, http.MethodPost, "/api/growth/tasks", `{"title":"Job post for Granit","taskType":"job_post","channels":["LinkedIn"]}`)
+	w = send(r, http.MethodPost, "/api/growth/tasks", `{"semester":"HT 2026","title":"Job post for Granit","taskType":"job_post","channels":["LinkedIn"]}`)
 	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
 	task := decode[deals.GrowthTaskView](t, w)
 

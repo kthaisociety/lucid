@@ -30,6 +30,7 @@ export type GrowthTask = {
   id: string
   title: string
   taskType: GrowthTaskType
+  semester: string // as a deal's, e.g. "HT 2026"
   assignee: Person | null
   postDate: string | null
   channels: Channel[]
@@ -41,7 +42,7 @@ export type GrowthTask = {
 
 // What a new task or an edit sends; the API rejects any other field.
 export type GrowthTaskInput = Partial<
-  Pick<GrowthTask, 'title' | 'taskType' | 'postDate' | 'channels' | 'status' | 'notes'> & { assigneeId: string | null }
+  Pick<GrowthTask, 'title' | 'taskType' | 'semester' | 'postDate' | 'channels' | 'status' | 'notes'> & { assigneeId: string | null }
 >
 
 export const typeLabel = (type: GrowthTaskType) => GROWTH_TASK_TYPES.find((t) => t.id === type)?.label ?? type
@@ -49,3 +50,41 @@ export const typeLabel = (type: GrowthTaskType) => GROWTH_TASK_TYPES.find((t) =>
 // Open tasks past their post date are overdue, as in the weekly reminder.
 export const isOverdue = (task: GrowthTask, today: string) =>
   task.postDate !== null && task.postDate < today && task.status !== 'posted' && task.status !== 'canceled'
+
+const DAY = 24 * 60 * 60 * 1000
+// A task with the same status this long has no movement, as in the weekly reminder.
+const STALE_DAYS = 7
+
+const isOpenTask = (t: GrowthTask) => t.status !== 'posted' && t.status !== 'canceled'
+export const hasNoMovement = (t: GrowthTask, now = Date.now()) =>
+  isOpenTask(t) && now - new Date(t.statusChangedAt).getTime() >= STALE_DAYS * DAY
+
+export type GrowthReport = {
+  open: number
+  overdue: number
+  noMovement: number
+  posted: number
+  byStatus: { label: string; value: number }[]
+  byChannel: { label: string; value: number }[] // posted or scheduled
+  byMember: { label: string; value: number }[] // open tasks
+  needsFollowUp: GrowthTask[] // open, and overdue or without movement
+}
+
+// The growth team's report on a semester's tasks (docs/adr/0012), as the deal log's is on its deals.
+export function growthReportFor(tasks: GrowthTask[], today: string, now = Date.now()): GrowthReport {
+  const open = tasks.filter(isOpenTask)
+  const count = (labels: string[], of: (label: string) => number) =>
+    labels.map((label) => ({ label, value: of(label) })).filter((b) => b.value > 0)
+  const out = tasks.filter((t) => t.status === 'posted' || t.status === 'scheduled')
+  const assignees = [...new Set(open.map((t) => t.assignee?.name ?? 'Unassigned'))].sort()
+  return {
+    open: open.length,
+    overdue: open.filter((t) => isOverdue(t, today)).length,
+    noMovement: open.filter((t) => hasNoMovement(t, now)).length,
+    posted: tasks.filter((t) => t.status === 'posted').length,
+    byStatus: GROWTH_STATUSES.map((s) => ({ label: s.label, value: tasks.filter((t) => t.status === s.id).length })),
+    byChannel: count([...CHANNELS], (c) => out.filter((t) => t.channels.includes(c as Channel)).length),
+    byMember: count(assignees, (name) => open.filter((t) => (t.assignee?.name ?? 'Unassigned') === name).length),
+    needsFollowUp: open.filter((t) => isOverdue(t, today) || hasNoMovement(t, now)),
+  }
+}

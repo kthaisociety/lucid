@@ -261,3 +261,12 @@ export function compareSemesters(a: string, b: string): number {
 export function currentSemester(now = new Date()): string {
   return `${now.getMonth() >= 6 ? 'HT' : 'VT'} ${now.getFullYear()}`
 }
+
+// The semesters a deal or growth task can be in: last year's to two years ahead, newest first, and its own.
+export function semesterOptions(own: string, now = new Date()): string[] {
+  const year = now.getFullYear()
+  const options = [year + 2, year + 1, year, year - 1].flatMap((y) => [`HT ${y}`, `VT ${y}`])
+  if (!options.includes(own)) options.push(own)
+  if (!options.includes(currentSemester(now))) options.push(currentSemester(now))
+  return options.sort(compareSemesters)
+}
